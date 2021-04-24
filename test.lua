@@ -14,6 +14,7 @@ LEFT=2
 RIGHT=3
 BTN_Z=4
 BTN_X=5
+KEY_SPACE=48
 
 pi=math.pi
 rnd=math.random
@@ -141,6 +142,22 @@ function rot_2d( x0, y0, cx, cy, angle )
     return x1,y1
 end
 
+function rot_poly( p,cx,cy,angle )
+    local res = {}
+    for i,v in ipairs(p) do
+        res[i] = v2(rot_2d(v.x,v.y,cx,cy,angle))
+    end
+    return res
+end
+
+function move_poly( p, dv )
+    local res = {}
+    for i,v in ipairs(p) do
+        res[i] = v2add(v, dv)
+    end
+    return res
+end
+
 polygon={v2(0,0), v2(0,1), v2(1,1), v2(1,0)}
 
 function intersect_polygons(a, b)
@@ -172,12 +189,18 @@ function intersect_polygons(a, b)
     return true
 end
 
-function center(e)
-    return e.pos.x + e.cr.x + e.cr.w / 2, e.pos.y + e.cr.y + e.cr.h / 2
+function tile_to_polygon(x,y)
+    local tx,ty = x*T, y*T
+    return {
+        v2(tx, ty),
+        v2(tx+T, ty),
+        v2(tx+T, ty+T),
+        v2(tx, ty+T)
+    }
 end
 
-function ent_to_polygin(e)
-    local cx,cy = center(e)
+function ent_to_polygon(e)
+    local cx,cy = e.pos.x + e.center.x, e.pos.y + e.center.y
     local x0,y0 = rot_2d(e.pos.x + e.cr.x,          e.pos.y + e.cr.y,           cx, cy, e.rot)
     local x1,y1 = rot_2d(e.pos.x + e.cr.x + e.cr.w, e.pos.y + e.cr.y,           cx, cy, e.rot)
     local x2,y2 = rot_2d(e.pos.x + e.cr.x + e.cr.w, e.pos.y + e.cr.y + e.cr.h,  cx, cy, e.rot)
@@ -200,16 +223,50 @@ function remap(tile,x,y)
     return outTile,flip,rotate --or simply `return outTile`.
 end
 
-function collide_tile(e, new_pos, callback)
+function collide_tile_poly( poly, callback )
+    local minX, maxX, minY, maxY = nil,nil,nil,nil
+    for i,v in ipairs(poly) do
+        if minX == nil or minX > v.x then minX = v.x end
+        if maxX == nil or maxX < v.x then maxX = v.x end
+        if minY == nil or minY > v.y then minY = v.y end
+        if maxY == nil or maxY < v.y then maxY = v.y end
+    end
+
+    local startX,startY,endX,endY = minX // T, minY // T, maxX // T, maxY // T
+    for x=startX,endX do
+        for y=startY,endY do
+            local tp = tile_to_polygon(x,y)
+            if intersect_polygons(tp, poly) then
+                callback(x, y)
+            end
+        end
+    end
+end
+
+function collide_tile(pos, cr, callback)
     -- no rotation
-    local crx, cry = new_pos.x + e.cr.x, new_pos.y + e.cr.y
+    local crx, cry = pos.x + cr.x, pos.y + cr.y
     local startX, startY = crx // T, cry // T
-    local endX, endY = (crx + e.cr.w) // T, (cry + e.cr.h) // T
+    local endX, endY = (crx + cr.w) // T, (cry + cr.h) // T
     for x=startX,endX do
         for y=startY,endY do
             callback(x, y)
         end
     end
+end
+
+function burr(pl)
+    local res = rot_poly(pl.burr_poly, pl.center.x, pl.center.y, pl.rot)
+    res = move_poly(res, pl.pos)
+    collide_tile_poly(res, function(x, y)
+        if not MAP[y][x].dug then
+            local tile = mget(x, y)
+            MAP[y][x].wear = MAP[y][x].wear - pl.power / TILES_TO_BLOCKS[tile].hardness
+            if MAP[y][x].wear <= 0 then
+                MAP[y][x].dug = true
+            end
+        end
+    end)
 end
 
 function move_player(pl)
@@ -226,7 +283,7 @@ function move_player(pl)
     dy=speed * sin(rot)
 
     local move = true
-    collide_tile(pl, v2add(pl.pos, v2(dx,dy)), function(x, y)
+    collide_tile(v2add(pl.pos, v2(dx,dy)), pl.cr, function(x, y)
         if not MAP[y][x].dug then
             move = false
             return
@@ -243,7 +300,7 @@ end
 function draw_ent(e, cam)
     local i=1
     local dx,dy=0,0
-    local cx,cy = center(e)
+    local cx,cy = e.pos.x + e.center.x, e.pos.y + e.center.y
     local x0,y0 = rot_2d(e.pos.x,           e.pos.y, cx, cy, e.rot)
     local x1,y1 = rot_2d(e.pos.x + e.pos.w, e.pos.y, cx, cy, e.rot)
     local x2,y2 = rot_2d(e.pos.x,           e.pos.y + e.pos.h, cx, cy, e.rot)
@@ -260,15 +317,12 @@ function draw()
     end
 end
 
-TEST_TRI={
-    v2(20, 10),
-    v2(120, 30),
-    v2(50, 80)
-}
-
 PLAYER={
     pos={x=0,y=0,w=32,h=16},
+    center=v2(8, 8),
     cr={x=0,y=0,w=16,h=16},
+    burr_poly={v2(16,0), v2(32,8), v2(16,16)},
+    power=1.0,
     rot=0,
     st=ST.IDLE,
     tex={x=0,y=128,w=32,h=16}
@@ -323,12 +377,7 @@ function TIC()
     draw()
     if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
     if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
-    tri(TEST_TRI[1].x, TEST_TRI[1].y, TEST_TRI[2].x, TEST_TRI[2].y, TEST_TRI[3].x, TEST_TRI[3].y, 1)
-    if intersect_polygons(TEST_TRI, ent_to_polygin(PLAYER)) then
-        print("INTERSECT", 120, 80, 6)
-    else
-        print("NIET", 120, 80, 12)
-    end
+    burr(PLAYER)
     -- animation
     -- gameTicks=gameTicks+1
 end

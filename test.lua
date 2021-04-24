@@ -4,6 +4,8 @@
 W=240
 H=136
 T=8
+INNER_R=4
+OUTER_R=INNER_R * math.sqrt(2)
 
 MAP_W=240
 MAP_H=136
@@ -20,6 +22,9 @@ pi=math.pi
 rnd=math.random
 cos=math.cos
 sin=math.sin
+min=math.min
+max=math.max
+abs=math.abs
 sf=string.format
 
 function deepcopy(orig)
@@ -109,6 +114,8 @@ function make_tex(c0,w,h)
 end
 
 -- vectors
+
+function sign(x) return x>0 and 1 or x<0 and -1 or 0 end
 
 function sq( v )
     return v*v
@@ -208,19 +215,40 @@ function ent_to_polygon(e)
     return {v2(x0,y0), v2(x1,y1), v2(x2, y2), v2(x3, y3)}
 end
 
-function remap(tile,x,y)
-    local outTile,flip,rotate=tile,0,0
-    if MAP[y][x].dug then
-        outTile = 0
+function aabb(point, x, y, w, h)
+    return x < point.x and point.x < x + w and y < point.y and point.y < y + h
+end
+
+function intersect_circle_aabb(c, x, y, w, h, inner, outer)
+    if inner == nil then inner = math.min(w, h) / 2 end
+    if outer == nil then outer = math.sqrt(sq(w/2)+sq(h/2)) end
+    local aabbC = v2(x+w/2, y+h/2)
+    local dist = v2dist(c, aabbC)
+    local angle = math.atan2(aabbC.y-c.y, aabbC.x-c.x)
+    if aabb(c, x, y, w, h) then
+        return true, dist, angle, nil, nil
+    else
+        local xn, yn = max(x, min(c.x, x+w)), max(y, min(c.y, y+h))
+        local dst = v2dist(c, v2(xn, yn))
+        if dst < c.r then
+            return true, dist, angle, xn, yn
+        else
+            return false, dist, angle, xn, yn
+        end
     end
-    if MAP[y][x].debug then
-        outTile = 17
+end
+
+function collide_tile_cicrle(c, callback)
+    local minX, maxX = c.x - c.r, c.x + c.r
+    local minY, maxY = c.y - c.r, c.y + c.r
+    local startX,startY,endX,endY = minX // T, minY // T, maxX // T, maxY // T
+    for x=startX,endX do
+        for y=startY,endY do
+            local tileX, tileY = x * T, y * T
+            local res, dist, angle, xn, yn = intersect_circle_aabb(c, tileX, tileY, T, T)
+            if res then callback(x, y, dist, angle, xn, yn) end
+        end
     end
-    -- animation: 
-    -- if tile==yourWaterfallTile then
-    -- 	outTile=outTile+math.floor(gameTicks*speed)%frames
-    -- end
-    return outTile,flip,rotate --or simply `return outTile`.
 end
 
 function collide_tile_poly( poly, callback )
@@ -282,19 +310,40 @@ function move_player(pl)
     dx=speed * cos(rot)
     dy=speed * sin(rot)
 
-    local move = true
-    collide_tile(v2add(pl.pos, v2(dx,dy)), pl.cr, function(x, y)
-        if not MAP[y][x].dug then
-            move = false
-            return
+    local hit=false
+    repeat
+        hit = false
+        local target = v2add(v2add(pl.pos, v2(dx,dy)), pl.cc)
+        local tangle,txn,tyn
+        local min_dist = nil
+        collide_tile_cicrle({x=target.x, y=target.y, r=pl.cc.r}, function(x, y, dist, angle, xn, yn)
+            if not MAP[y][x].dug then
+                hit=true
+                if min_dist == nil or dist < min_dist then
+                    min_dist = dist
+                    txn,tyn,tangle = xn,yn,angle
+                end
+            end
+        end)
+
+        if hit then
+            if txn ~= nil and tyn ~= nil then
+                local goal_dist = pl.cc.r
+                local dist_to_xn = v2dist(target, v2(txn,tyn))
+                local diff = goal_dist - dist_to_xn
+                dx = dx - diff * cos(tangle)
+                dy = dy - diff * sin(tangle)
+            else
+                dx=0
+                dy=0
+            end
         end
-    end)
+        -- if abs(dx) < 0.0001 and abs(dy) < 0.0001 then hit = false end
+    until hit == false
 
     pl.rot=rot
-    if move then
-        pl.pos.x = pl.pos.x + dx
-        pl.pos.y = pl.pos.y + dy
-    end
+    pl.pos.x = pl.pos.x + dx
+    pl.pos.y = pl.pos.y + dy
 end
 
 function draw_ent(e, cam)
@@ -306,14 +355,15 @@ function draw_ent(e, cam)
     local x2,y2 = rot_2d(e.pos.x,           e.pos.y + e.pos.h, cx, cy, e.rot)
     local x3,y3 = rot_2d(e.pos.x + e.pos.w, e.pos.y + e.pos.h, cx, cy, e.rot)
 
-    if cam ~= nil then dx,dy = cam.x,cam.y end
+    if cam ~= nil then dx,dy = -cam.x,-cam.y end
     textri(x0+dx, y0+dy, x1+dx, y1+dy, x2+dx, y2+dy, e.tex.x, e.tex.y, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, false, 0)
     textri(x1+dx, y1+dy, x2+dx, y2+dy, x3+dx, y3+dy, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, e.tex.x + e.tex.w, e.tex.y + e.tex.h, false, 0)
 end
 
-function draw()
+function draw(cam)
+    drawMap(cam)
     for i,v in ipairs(ENTITIES) do
-        draw_ent(v)
+        draw_ent(v,cam)
     end
 end
 
@@ -321,6 +371,7 @@ PLAYER={
     pos={x=0,y=0,w=32,h=16},
     center=v2(8, 8),
     cr={x=0,y=0,w=16,h=16},
+    cc={x=8,y=8,r=8},
     burr_poly={v2(16,0), v2(32,8), v2(16,16)},
     power=1.0,
     rot=0,
@@ -331,6 +382,47 @@ PLAYER={
 ENTITIES={
     PLAYER
 }
+
+CIRCLE = {
+    x=50,
+    y=50,
+    r=25
+}
+
+AABB={
+    x=120,
+    y=70,
+    w=20,
+    h=20
+}
+
+CAM={
+    x=0,y=0
+}
+
+function updateCam(cam,e)
+    cam.x=e.pos.x-W//2
+    cam.y=e.pos.y-H//2
+end
+
+function drawMap( cam )
+    local cx,cy = cam.x // T, cam.y // T
+    local offx, offy = cx * T - cam.x, cy * T - cam.y
+    map(cx,cy,30,17,offx,offy,-1,1,function(tile,x,y)
+        local outTile,flip,rotate=tile,0,0
+        if MAP[y][x].dug then
+            outTile = 0
+        end
+        if MAP[y][x].debug then
+            outTile = 17
+        end
+        -- animation: 
+        -- if tile==yourWaterfallTile then
+        -- 	outTile=outTile+math.floor(gameTicks*speed)%frames
+        -- end
+        return outTile,flip,rotate --or simply `return outTile`.
+    end)
+end
 
 -- map
 
@@ -360,24 +452,25 @@ end
 
 function init()
     generateMap()
-    PLAYER.pos.x=88
-    PLAYER.pos.y=56
+    PLAYER.pos.x=W//2
+    PLAYER.pos.y=H//2
 end
 
 init()
 function TIC()
     cls()
-    move_player(PLAYER)
-    map(0,0,30,17,0,0,-1,1,remap) --The `remap()` function is used here.
-    local x,y=mouse()
-    local mx,my = x//T,y//T
-    rectb(mx*T,my*T,T,T,1)
-    local tile=MAP[my][mx]
-    print(sf("%s %s", tile.block.name, tile.dug), mx*T+T, my*T+T, 12)
-    draw()
+    updateCam(CAM, PLAYER)
+    draw(CAM)
+    -- local x,y=mouse()
+    -- local mx,my = (CAM.x + x)//T,(CAM.y + y)//T
+    -- rectb(mx*T,my*T,T,T,1)
+    -- local tile=MAP[my][mx]
+    -- print(sf("%s %s", tile.block.name, tile.dug), mx*T+T, my*T+T, 12)
+    trace(sf("%f %f", CAM.x, CAM.y))
     if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
     if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
     burr(PLAYER)
+    move_player(PLAYER)
     -- animation
     -- gameTicks=gameTicks+1
 end

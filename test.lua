@@ -8,9 +8,14 @@ T=8
 MAP_W=240
 MAP_H=136
 
+UP=0
+DOWN=1
+LEFT=2
+RIGHT=3
 BTN_Z=4
 BTN_X=5
 
+pi=math.pi
 rnd=math.random
 cos=math.cos
 sin=math.sin
@@ -69,7 +74,9 @@ BLOCKS={
 
 def_tile={
     block=BLOCKS.DIRT,
+    wear=1.0,
     seen=false,
+    debug=false,
     dug=false
 }
 
@@ -100,30 +107,6 @@ function make_tex(c0,w,h)
     return tex
 end
 
--- map
-
-function generateMap()
-    for y=0,MAP_H-1 do
-        MAP[y] = {}
-        for x=0,MAP_W-1 do
-            tile = 1
-            if y > 10 then
-                tile=rnd(1,4)
-            end
-            local map_tile=deepcopy(def_tile)
-            map_tile.block=TILES_TO_BLOCKS[tile]
-            if x > 10 and x < 16 then
-                if y > 5 and y < 9 then
-                    map_tile.seen=true
-                    map_tile.dug=true
-                end
-            end
-            MAP[y][x]=map_tile
-            mset(x, y, tile)
-        end
-    end
-end
-
 -- vectors
 
 function sq( v )
@@ -132,6 +115,10 @@ end
 
 function v2( x,y )
     return{x=x,y=y}
+end
+
+function v2add( v1,v2 )
+    return {x=v1.x+v2.x,y=v1.y+v2.y}
 end
 
 function dist_2d(x0, y0, x1, y1)
@@ -154,16 +141,57 @@ function rot_2d( x0, y0, cx, cy, angle )
     return x1,y1
 end
 
-function init()
-    generateMap()
-    PLAYER.x=88
-    PLAYER.y=56
+polygon={v2(0,0), v2(0,1), v2(1,1), v2(1,0)}
+
+function intersect_polygons(a, b)
+    local polygons={a,b}
+    local minA, maxA, projected, i, i1, j, minB, maxB
+    for i,p in ipairs(polygons) do
+        for i1,p1 in ipairs(p) do
+            local i2 = (i1+1) % #p
+            if i2 == 0 then i2 = #p end
+            local p2 = p[i2]
+            local normal = v2(p2.y-p1.y, p1.x-p2.x)
+            minA,maxA=nil,nil
+            for j,v in ipairs(a) do
+                projected = normal.x * v.x + normal.y * v.y
+                if minA == nil or projected < minA then minA = projected end
+                if maxA == nil or projected > maxA then maxA = projected end
+            end
+            minB,maxB = nil,nil
+            for j,v in ipairs(b) do
+                projected = normal.x * v.x + normal.y * v.y
+                if minB == nil or projected < minB then minB = projected end
+                if maxB == nil or projected > maxB then maxB = projected end
+            end
+            if maxA < minB or maxB < minA then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+function center(e)
+    return e.pos.x + e.cr.x + e.cr.w / 2, e.pos.y + e.cr.y + e.cr.h / 2
+end
+
+function ent_to_polygin(e)
+    local cx,cy = center(e)
+    local x0,y0 = rot_2d(e.pos.x + e.cr.x,          e.pos.y + e.cr.y,           cx, cy, e.rot)
+    local x1,y1 = rot_2d(e.pos.x + e.cr.x + e.cr.w, e.pos.y + e.cr.y,           cx, cy, e.rot)
+    local x2,y2 = rot_2d(e.pos.x + e.cr.x + e.cr.w, e.pos.y + e.cr.y + e.cr.h,  cx, cy, e.rot)
+    local x3,y3 = rot_2d(e.pos.x + e.cr.x,          e.pos.y + e.cr.y + e.cr.h,  cx, cy, e.rot)
+    return {v2(x0,y0), v2(x1,y1), v2(x2, y2), v2(x3, y3)}
 end
 
 function remap(tile,x,y)
     local outTile,flip,rotate=tile,0,0
     if MAP[y][x].dug then
         outTile = 0
+    end
+    if MAP[y][x].debug then
+        outTile = 17
     end
     -- animation: 
     -- if tile==yourWaterfallTile then
@@ -172,40 +200,56 @@ function remap(tile,x,y)
     return outTile,flip,rotate --or simply `return outTile`.
 end
 
-PLAYER={
-    x=0,y=0,
-    w=40,h=16,
-    rot=0,
-    st=ST.IDLE,
-    sp=make_tex(256,5,2),
-    tex={x=0,y=128,w=40,h=16}
-}
+function collide_tile(e, new_pos, callback)
+    -- no rotation
+    local crx, cry = new_pos.x + e.cr.x, new_pos.y + e.cr.y
+    local startX, startY = crx // T, cry // T
+    local endX, endY = (crx + e.cr.w) // T, (cry + e.cr.h) // T
+    for x=startX,endX do
+        for y=startY,endY do
+            callback(x, y)
+        end
+    end
+end
 
-ENTITIES={
-    PLAYER
-}
+function move_player(pl)
+    local dx,dy,rot,speed=0,0,0,1
+    if btn(UP) then dy=-speed end
+    if btn(DOWN) then dy=speed end
+    if btn(LEFT) then dx=-speed end
+    if btn(RIGHT) then dx=speed end
+
+    if dx == 0 and dy == 0 then return end
+
+    rot=math.atan2(dy,dx)
+    dx=speed * cos(rot)
+    dy=speed * sin(rot)
+
+    local move = true
+    collide_tile(pl, v2add(pl.pos, v2(dx,dy)), function(x, y)
+        if not MAP[y][x].dug then
+            move = false
+            return
+        end
+    end)
+
+    pl.rot=rot
+    if move then
+        pl.pos.x = pl.pos.x + dx
+        pl.pos.y = pl.pos.y + dy
+    end
+end
 
 function draw_ent(e, cam)
     local i=1
     local dx,dy=0,0
-    local cx,cy = e.x + e.w / 2, e.y + e.h / 2
-    local x0,y0 = rot_2d(e.x, e.y, cx, cy, e.rot)
-    local x1,y1 = rot_2d(e.x + e.w, e.y, cx, cy, e.rot)
-    local x2,y2 = rot_2d(e.x, e.y + e.h, cx, cy, e.rot)
-    local x3,y3 = rot_2d(e.x + e.w, e.y + e.h, cx, cy, e.rot)
+    local cx,cy = center(e)
+    local x0,y0 = rot_2d(e.pos.x,           e.pos.y, cx, cy, e.rot)
+    local x1,y1 = rot_2d(e.pos.x + e.pos.w, e.pos.y, cx, cy, e.rot)
+    local x2,y2 = rot_2d(e.pos.x,           e.pos.y + e.pos.h, cx, cy, e.rot)
+    local x3,y3 = rot_2d(e.pos.x + e.pos.w, e.pos.y + e.pos.h, cx, cy, e.rot)
 
     if cam ~= nil then dx,dy = cam.x,cam.y end
-    -- for i,t in ipairs(e.sp) do
-    --     for j,v in ipairs(t) do
-    --         if e.dir == nil or e.dir == DIR.R then
-    --             spr(v, e.x+(j-1)*T+dx, e.y+(i-1)*T+dy, 0)
-    --         else
-    --             tlen = #t
-    --             spr(v, e.x+(tlen-j)*T+dx, e.y+(i-1)*T+dy, 0, 1, 1)
-    --         end
-    --     end
-    -- end
-
     textri(x0+dx, y0+dy, x1+dx, y1+dy, x2+dx, y2+dy, e.tex.x, e.tex.y, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, false, 0)
     textri(x1+dx, y1+dy, x2+dx, y2+dy, x3+dx, y3+dy, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, e.tex.x + e.tex.w, e.tex.y + e.tex.h, false, 0)
 end
@@ -216,9 +260,60 @@ function draw()
     end
 end
 
+TEST_TRI={
+    v2(20, 10),
+    v2(120, 30),
+    v2(50, 80)
+}
+
+PLAYER={
+    pos={x=0,y=0,w=32,h=16},
+    cr={x=0,y=0,w=16,h=16},
+    rot=0,
+    st=ST.IDLE,
+    tex={x=0,y=128,w=32,h=16}
+}
+
+ENTITIES={
+    PLAYER
+}
+
+-- map
+
+function generateMap()
+    for y=0,MAP_H-1 do
+        MAP[y] = {}
+        for x=0,MAP_W-1 do
+            tile = 1
+            if y > 10 then
+                tile=rnd(1,4)
+            end
+            local map_tile=deepcopy(def_tile)
+            map_tile.block=TILES_TO_BLOCKS[tile]
+            if x > 10 and x < 100 then
+                if y > 5 and y < 9 then
+                    map_tile.seen=true
+                    map_tile.dug=true
+                end
+            end
+            MAP[y][x]=map_tile
+            mset(x, y, tile)
+        end
+    end
+end
+
+-- init
+
+function init()
+    generateMap()
+    PLAYER.pos.x=88
+    PLAYER.pos.y=56
+end
+
 init()
 function TIC()
     cls()
+    move_player(PLAYER)
     map(0,0,30,17,0,0,-1,1,remap) --The `remap()` function is used here.
     local x,y=mouse()
     local mx,my = x//T,y//T
@@ -228,6 +323,12 @@ function TIC()
     draw()
     if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
     if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
+    tri(TEST_TRI[1].x, TEST_TRI[1].y, TEST_TRI[2].x, TEST_TRI[2].y, TEST_TRI[3].x, TEST_TRI[3].y, 1)
+    if intersect_polygons(TEST_TRI, ent_to_polygin(PLAYER)) then
+        print("INTERSECT", 120, 80, 6)
+    else
+        print("NIET", 120, 80, 12)
+    end
     -- animation
     -- gameTicks=gameTicks+1
 end

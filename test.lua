@@ -71,6 +71,20 @@ function deepcopy(orig)
     return copy
 end
 
+function pairsByKeys (t, f)
+    local a = {}
+    for n in pairs(t) do table.insert(a, n) end
+    table.sort(a, f)
+    local i = 0      -- iterator variable
+    local iter = function ()   -- iterator function
+        i = i + 1
+        if a[i] == nil then return nil
+        else return a[i], t[a[i]]
+        end
+    end
+    return iter
+end
+
 function table.index(table, element)
     for i, value in pairs(table) do
       if value == element then
@@ -654,7 +668,7 @@ function drawHud( pl )
     local w = print(str, W, H)
     print(str, W-w, H-8, 12)
 
-    str = sf("fuel: %.1f/%.1f, cargo: %.0f/%.0f", pl.fuel, pl.fuel_tank.value, cargo_mass(pl), pl.container.value)
+    str = sf("fuel: %.1f/%.1f", pl.fuel, pl.fuel_tank.value)
     w = print(str, W, H)
     print(str, W-w, H-16, 12)
 end
@@ -686,6 +700,7 @@ function draw(cam, pl)
         draw_ent(v,cam)
     end
     drawHud(pl)
+    draw_cargo_bar(pl, false)
     if pl.fuel <= 0 then
         local str = "NO FUEL!"
         local w = text_width(str, false)
@@ -980,12 +995,12 @@ function init()
     MODE=MOD_GAME
     OLD_MODE=nil
     PREV_MODE=nil
-    if debug then
-        PLAYER.engine=ENGINES[3]
-        PLAYER.burr=BURRS[2]
-        PLAYER.fuel=10000
-        PLAYER.money=10000
-    end
+    -- if debug then
+    --     PLAYER.engine=ENGINES[3]
+    --     PLAYER.burr=BURRS[2]
+    --     PLAYER.fuel=10000
+    --     PLAYER.money=10000
+    -- end
 end
 
 function TICGame()
@@ -1052,7 +1067,6 @@ function on_upgrade_click(btn)
     end
 end
 
--- function make_button( x, y, w, h, color, item, text, on_hover, on_leave, on_press, on_release, on_enter, sp, offx, offy, on_draw )
 function make_upgrade_button(x, y, upgrade, pl, target_item, target_spec, format, container)
     local res,_ = can_buy(pl, upgrade, target_item, container)
     local color = 15
@@ -1141,11 +1155,11 @@ end
 
 -- make_button( x, y, w, h, color, item, text, on_hover, on_leave, on_press, on_release, on_enter, sp, offx, offy, on_draw )
 function initUiButtons(pl)
-    local quit = make_button(200, 20, 32, 16, 3, nil, "Quit", g_hover, g_leave, on_quit_press)
+    local quit = make_button(W-32, 0, 32, 12, 3, nil, "Quit", g_hover, g_leave, on_quit_press)
     table.insert( UI_BUTTONS,quit )
-    local sell_cargo = make_button(150, 42, 82, 16, 3, nil, "Sell minerals", g_hover, g_leave, on_sell_press)
+    local sell_cargo = make_button(150, 42, 82, 12, 3, nil, "Sell minerals", g_hover, g_leave, on_sell_press)
     table.insert( UI_BUTTONS,sell_cargo )
-    local buy_fuel = make_button(180, 64, 52, 16, 3, nil, "Buy fuel", g_hover, g_leave, on_buy_press)
+    local buy_fuel = make_button(180, 64, 52, 12, 3, nil, "Buy fuel", g_hover, g_leave, on_buy_press)
     table.insert( UI_BUTTONS,buy_fuel )
 end
 
@@ -1164,6 +1178,44 @@ function initShop()
     initUiButtons(PLAYER)
 end
 
+function draw_cargo_bar(pl, print_legend)
+    local x,y,w,h = 226, 20, 10, 110
+    local total,current = pl.container.value, cargo_mass(pl)
+    if current > total then total = current end  -- consider overload
+    local by_name = {}
+    local colors={2,4,6,9}
+    local c_idx=1
+    for i,item in ipairs(pl.container_items) do
+        if by_name[item.name] == nil then
+            by_name[item.name] = {mass=item.mass, value=item.value, tile=item.parent, color=colors[c_idx]}
+            c_idx = (c_idx + 1) % #colors
+            if c_idx == 0 then c_idx = #colors end
+        else
+            by_name[item.name].mass = by_name[item.name].mass + item.mass
+            by_name[item.name].value = by_name[item.name].value + item.value
+        end
+    end
+
+    local drawY = y+h
+    for k,v in pairs(by_name) do
+        local barH = v.mass * h / total
+        rect(x, drawY-barH, w, barH, v.color)
+
+        if print_legend then
+            local textH = barH
+            if textH < 10 then textH = 10 end
+            local str=sf("%s -\n$%.0f", k, v.value)
+            local tw = text_width(str,true)
+            printframe(str, x-tw, drawY-textH, v.color, 0, true)
+            spr(v.tile, x-tw-T-2, drawY-textH)
+        end
+
+        drawY=drawY-barH
+    end
+
+    rectb(x,y,w,h,1)
+end
+
 function TICShop()
     cls()
     print("Upgrades", 40, 2, 12)
@@ -1174,6 +1226,8 @@ function TICShop()
     print("FUEL TANK", startX, startY+40, 12)
     print("CARGO BAY", startX, startY+60, 12)
     print("RADAR", startX, startY+80, 12)
+
+    draw_cargo_bar(PLAYER, true)
 
     update_buttons(UI_BUTTONS)
     update_buttons(SHOP_BUTTONS)

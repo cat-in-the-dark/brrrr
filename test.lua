@@ -200,47 +200,49 @@ end
 -- minerals
 
 RESOURCES={
-    COAL={
+    [1]={
+        name="coal",
         value=10,
         mass=10
     },
-    EMERALD={
+    [2]={
+        name="emerald",
         value=100,
         mass=1
     }
 }
 
 BLOCKS={
-    DIRT={
+    [1]={
         name="dirt",
         hardness=10,
         resource=nil
     },
-    GRANITE={
+    [2]={
         name="granite",
         hardness=10,
         resource=nil,
     },
-    COAL={
+    [3]={
         name="coal",
         hardness=10,
-        resource=RESOURCES.COAL,
+        resource=RESOURCES[1],
         prob=0.5
     },
-    EMERALD={
+    [4]={
         name="emerald",
         hardness=40,
-        resource=RESOURCES.EMERALD,
+        resource=RESOURCES[2],
         prob=0.2
     },
-    OBSIDIAN={
+    [5]={
         name="obsidian",
         hardness=-1
     }
 }
 
 def_tile={
-    block=BLOCKS.DIRT,
+    block=BLOCKS[1],
     wear=1.0,
     seen=false,
     debug=false,
@@ -250,11 +252,11 @@ def_tile={
 MAP={}
 
 TILES_TO_BLOCKS={
-    [1]=BLOCKS.DIRT,
-    [2]=BLOCKS.GRANITE,
-    [3]=BLOCKS.COAL,
-    [4]=BLOCKS.EMERALD,
-    [5]=BLOCKS.OBSIDIAN
+    [1]=BLOCKS[1],
+    [2]=BLOCKS[2],
+    [3]=BLOCKS[3],
+    [4]=BLOCKS[4],
+    [5]=BLOCKS[5]
 }
 
 ST={
@@ -490,7 +492,8 @@ function burr(pl)
                 local res = blk.resource
                 if res ~= nil then
                     if math.random() < blk.prob * pl.burr.value then
-                        table.insert( pl.container_items, res )
+                        table.insert( pl.container_items, deepcopy(res) )  -- fix mass and value changes in container when move between levels
+                        trace(sf("add %d mass", res.mass))
                     end
                 end
             end
@@ -678,7 +681,11 @@ end
 
 FUEL_PRICE=1.0
 
-VALUE_INCREMENT=1.5
+HARDNESS_INCREMENT=1.2
+MASS_INCREMENT=1.2
+RESOURCE_VAL_INCREMENT=1.15
+VALUE_INCREMENT=1.25
+PRICE_INCREMENT=1.2
 
 FT_GEN={
     names = {"Basic", "Big", "XLarge", "Ginormous", "SSET", "Baikal", "9^9*XL"},
@@ -1112,7 +1119,7 @@ function generateUpgrade(last, generator)
     new_val.name=new_name
 
     local new_price = last.price + generator.increment
-    generator.increment = generator.increment * 1.1
+    generator.increment = generator.increment * PRICE_INCREMENT
     new_val.price = new_price
 
     local new_value = last.value * VALUE_INCREMENT
@@ -1152,17 +1159,35 @@ function shiftUpgrade(field, container, generator)
     PLAYER[field] = container[1]
 end
 
--- burr=BURRS[1],
--- container=CONTAINERS[1],
--- engine=ENGINES[1],
--- fuel_tank=FUEL_TANKS[1],
--- radar=RADARS[1],
+-- name="dirt",
+-- hardness=10,
+-- resource=nil
+function upgradeBlocks()
+    for i,block in ipairs(BLOCKS) do
+        local new_hardness = ((block.hardness * HARDNESS_INCREMENT // 5)) * 5
+        if new_hardness == block.hardness then new_hardness = new_hardness + 1 end
+        block.hardness=new_hardness
+        if block.resource ~= nil then
+            local new_val = ((block.resource.value * RESOURCE_VAL_INCREMENT) // 5) * 5
+            if new_val == block.resource.value then new_val = new_val + 1 end
+            trace(sf("new price: %d", new_val))
+            block.resource.value = new_val
+            local new_mass = math.floor(block.resource.mass * MASS_INCREMENT)
+            trace(sf("new mass = %d", new_mass))
+            if new_mass == block.resource.mass then new_mass = new_mass + 1 end
+            trace(sf("new mass[1] = %d", new_mass))
+            block.resource.mass = new_mass
+        end
+    end
+end
+
 function incrementLevel()
     shiftUpgrade("burr", BURRS, BR_GEN)
     shiftUpgrade("container", CONTAINERS, CNT_GEN)
     shiftUpgrade("engine", ENGINES, ENGINE_GEN)
     shiftUpgrade("fuel_tank", FUEL_TANKS, FT_GEN)
     shiftUpgrade("radar", RADARS, RDR_GEN)
+    upgradeBlocks()
 end
 
 MAP_GEN_Y=0

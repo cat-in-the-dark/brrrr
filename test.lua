@@ -441,12 +441,12 @@ function collide_tile(pos, cr, callback)
     end
 end
 
-function remaining_capacity( pl )
+function cargo_mass( pl )
     local mass=0
     for i,item in ipairs(pl.container_items) do
         mass = mass + item.mass
     end
-    return pl.container.value - mass
+    return mass
 end
 
 function burr(pl)
@@ -456,6 +456,11 @@ function burr(pl)
         if not MAP[y][x].dug then
             if pl.fuel <= 0 then
                 trace("no fuel!")
+                return
+            end
+
+            if cargo_mass(pl) > pl.container.value then
+                trace("Overload!")
                 return
             end
 
@@ -473,9 +478,7 @@ function burr(pl)
                 local res = blk.resource
                 if res ~= nil then
                     if math.random() < blk.prob * pl.burr.value then
-                        if remaining_capacity(pl) >= res.mass then
-                            table.insert( pl.container_items, res )
-                        end
+                        table.insert( pl.container_items, res )
                     end
                 end
             end
@@ -582,7 +585,7 @@ function drawHud( pl )
     local w = print(str, W, H)
     print(str, W-w, H-8, 12)
 
-    str = sf("fuel: %.1f/%.1f, cargo: %.0f/%.0f", pl.fuel, pl.fuel_tank.value, remaining_capacity(pl), pl.container.value)
+    str = sf("fuel: %.1f/%.1f, cargo: %.0f/%.0f", pl.fuel, pl.fuel_tank.value, cargo_mass(pl), pl.container.value)
     w = print(str, W, H)
     print(str, W-w, H-16, 12)
 end

@@ -556,7 +556,7 @@ function world_bounds(pl)
     -- map bounds
     if pl.pos.y + pl.pos.h < GROUND_HEIGT or pl.pos.y >= (H-1) * T - pl.cc.r * 2 then
         pl.pos.y = pl.pos.y + fall_speed
-        fall_speed = fall_speed + 0.1
+        fall_speed = fall_speed + 0.07
     else
         fall_speed = 0
     end

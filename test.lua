@@ -180,8 +180,8 @@ function draw_button( btn )
     end
 
     if btn.text ~= nil then
-        local tw,th = print(text, W,H),8
-        printframe(text, btn.x + btn.w/2 - tw/2 + dx, btn.y + btn.h/2 - th/2 + dy, 6)
+        local tw,th = print(btn.text, W,H),8
+        printframe(btn.text, btn.x + btn.w/2 - tw/2 + dx, btn.y + btn.h/2 - th/2 + dy, 6)
         return
     end
 
@@ -452,12 +452,12 @@ function burr(pl)
     collide_tile_poly(res, function(x, y)
         if not MAP[y][x].dug then
             if pl.fuel <= 0 then
-                trace("no fuel!")
+                -- trace("no fuel!")
                 return
             end
 
             if cargo_mass(pl) > pl.container.value then
-                trace("Overload!")
+                -- trace("Overload!")
                 return
             end
 
@@ -491,11 +491,11 @@ end
 
 function refuel(pl)
     local cap = pl.fuel_tank.value - pl.fuel
-    trace(cap)
+    -- trace(cap)
     local cost = min(cap * FUEL_PRICE, pl.money)
-    trace(cost)
+    -- trace(cost)
     local amount = cost / FUEL_PRICE
-    trace(amount)
+    -- trace(amount)
     pl.fuel = pl.fuel + amount
     pl.money = pl.money - cost
 end
@@ -639,6 +639,16 @@ function draw(cam, pl)
         draw_ent(v,cam)
     end
     drawHud(pl)
+    if pl.fuel <= 0 then
+        local str = "NO FUEL!"
+        local w = text_width(str, false)
+        printframe(str, W//2-w//2, H//2-5, 2)
+    end
+    if cargo_mass(pl) > pl.container.value then
+        local str = "OVERLOADED!"
+        local w = text_width(str, false)
+        printframe(str, W//2-w//2, H//2+5, 2)
+    end
 end
 
 -- balance
@@ -818,14 +828,14 @@ function TICGame()
     -- rectb(mx*T,my*T,T,T,1)
     -- local tile=MAP[my][mx]
     -- print(sf("%s %s", tile.block.name, tile.dug), mx*T+T, my*T+T, 12)
-    if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
-    if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
-    if keyp(KEY_S) then
-        sell_resources(PLAYER)
-    end
-    if keyp(KEY_F) then
-        refuel(PLAYER)
-    end
+    -- if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
+    -- if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
+    -- if keyp(KEY_S) then
+    --     sell_resources(PLAYER)
+    -- end
+    -- if keyp(KEY_F) then
+    --     refuel(PLAYER)
+    -- end
     burr(PLAYER)
     move_player(PLAYER)
     -- animation
@@ -849,7 +859,7 @@ function on_upgrade_hover(btn)
     local x,y,w,h=math.min(W-width, mx + dx), my+dy, width+6, 24
     rect(x-4,y-4,w,h,8)
     rectb(x-3,y-3,w,h,2)
-    printframe(text,x,y,15,0,true)
+    printframe(text,x,y,11,0,true)
     -- price
     text=msg
     local w1=text_width(text,true)
@@ -882,6 +892,7 @@ function make_upgrade_button(x, y, upgrade, pl, target_item, target_spec, format
 end
 
 SHOP_BUTTONS={}
+UI_BUTTONS={}
 
 function can_buy(pl, item, to_replace, items_container)
     if item ~= pl[to_replace] then
@@ -902,7 +913,7 @@ end
 
 function buy_item(pl, item, to_replace, items_container)
     if can_buy(pl, item, to_replace, items_container) then
-        trace("here")
+        -- trace("here")
         pl.money = pl.money - item.price
         pl[to_replace] = item
     end
@@ -911,8 +922,7 @@ end
 -- function make_upgrade_button(x, y, upgrade, pl, target_item, target_spec, format, container)
 function initShopButtons(pl)
     SHOP_BUTTONS={}
-    local startX, startY = 10, 8
-    trace(#ENGINES)
+    local startX, startY = 64, 16
     for i,v in ipairs(ENGINES) do
         local offX = (i-1) * 24
         local btn = make_upgrade_button(startX + offX, startY, v, pl, "engine", "Power", "%.1fx", ENGINES)
@@ -920,24 +930,48 @@ function initShopButtons(pl)
     end
     for i,v in ipairs(BURRS) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY + 24, v, pl, "burr", "Recovery", "x%.1f", BURRS)
+        local btn = make_upgrade_button(startX + offX, startY + 20, v, pl, "burr", "Recovery", "x%.1f", BURRS)
         table.insert(SHOP_BUTTONS, btn)
     end
     for i,v in ipairs(FUEL_TANKS) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY + 48, v, pl, "fuel_tank", "Volume", "%d", FUEL_TANKS)
+        local btn = make_upgrade_button(startX + offX, startY + 40, v, pl, "fuel_tank", "Volume", "%d", FUEL_TANKS)
         table.insert(SHOP_BUTTONS, btn)
     end
     for i,v in ipairs(CONTAINERS) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY + 72, v, pl, "container", "Volume", "%d", CONTAINERS)
+        local btn = make_upgrade_button(startX + offX, startY + 60, v, pl, "container", "Volume", "%d", CONTAINERS)
         table.insert(SHOP_BUTTONS, btn)
     end
     for i,v in ipairs(RADARS) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY + 96, v, pl, "radar", "Distance", "%d m", RADARS)
+        local btn = make_upgrade_button(startX + offX, startY + 80, v, pl, "radar", "Distance", "%d m", RADARS)
         table.insert(SHOP_BUTTONS, btn)
     end
+end
+
+function on_quit_press(btn)
+    MODE=MOD_GAME
+end
+
+function on_sell_press(btn)
+    sell_resources(PLAYER)
+    initShopButtons(PLAYER)
+end
+
+function on_buy_press(btn)
+    refuel(PLAYER)
+    initShopButtons(PLAYER)
+end
+
+-- make_button( x, y, w, h, color, item, text, on_hover, on_leave, on_press, on_release, on_enter, sp, offx, offy, on_draw )
+function initUiButtons(pl)
+    local quit = make_button(200, 20, 32, 16, 3, nil, "Quit", g_hover, g_leave, on_quit_press)
+    table.insert( UI_BUTTONS,quit )
+    local sell_cargo = make_button(150, 42, 82, 16, 3, nil, "Sell minerals", g_hover, g_leave, on_sell_press)
+    table.insert( UI_BUTTONS,sell_cargo )
+    local buy_fuel = make_button(180, 64, 52, 16, 3, nil, "Buy fuel", g_hover, g_leave, on_buy_press)
+    table.insert( UI_BUTTONS,buy_fuel )
 end
 
 function update_buttons(btns)
@@ -952,16 +986,23 @@ end
 
 function initShop()
     initShopButtons(PLAYER)
+    initUiButtons(PLAYER)
 end
 
 function TICShop()
     cls()
-    str = "Welcome to shop!"
-    w = print(str, W, H)
-    print(str, W//2 - w // 2, H // 2, 12)
+    print("Upgrades", 40, 2, 12)
     drawHud(PLAYER)
+    local startX,startY=5,20
+    print("ENGINE", startX, startY, 12)
+    print("DRILL", startX, startY+20, 12)
+    print("FUEL TANK", startX, startY+40, 12)
+    print("CARGO BAY", startX, startY+60, 12)
+    print("RADAR", startX, startY+80, 12)
+
+    update_buttons(UI_BUTTONS)
     update_buttons(SHOP_BUTTONS)
-    if keyp(KEY_Q) then MODE=MOD_GAME end
+    -- if keyp(KEY_Q) then MODE=MOD_GAME end
 end
 
 MOD_GAME = 1

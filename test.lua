@@ -233,6 +233,10 @@ BLOCKS={
         hardness=40,
         resource=RESOURCES.EMERALD,
         prob=0.2
+    },
+    OBSIDIAN={
+        name="obsidian",
+        hardness=-1
     }
 }
 
@@ -250,7 +254,8 @@ TILES_TO_BLOCKS={
     [1]=BLOCKS.DIRT,
     [2]=BLOCKS.GRANITE,
     [3]=BLOCKS.COAL,
-    [4]=BLOCKS.EMERALD
+    [4]=BLOCKS.EMERALD,
+    [5]=BLOCKS.OBSIDIAN
 }
 
 ST={
@@ -466,6 +471,12 @@ function burr(pl)
 
             -- dig tile
             local tile = mget(x, y)
+
+            -- special edge tiles
+            if TILES_TO_BLOCKS[tile].hardness == -1 then
+                return
+            end
+
             MAP[y][x].wear = MAP[y][x].wear - pl.engine.value / TILES_TO_BLOCKS[tile].hardness
 
             -- drain fuel
@@ -561,6 +572,11 @@ function move_player(pl)
     pl.rot=rot
     pl.pos.x = pl.pos.x + dx
     pl.pos.y = pl.pos.y + dy
+
+    -- map bounds
+    if pl.pos.y + pl.pos.h < GROUND_HEIGT then
+        pl.pos.y = GROUND_HEIGT - pl.pos.h
+    end
 end
 
 function draw_ent(e, cam)
@@ -598,7 +614,14 @@ function drawHud( pl )
     print(str, W-w, H-16, 12)
 end
 
+function drawSky(cam)
+    local sky_height = GROUND_HEIGT - cam.y
+    if sky_height <= 0 then return end
+    rect(0, 0, W, sky_height, 10)
+end
+
 function draw(cam, pl)
+    drawSky(cam)
     drawMap(cam)
     for i,v in ipairs(ENTITIES) do
         draw_ent(v,cam)
@@ -675,22 +698,26 @@ AABB={
     h=20
 }
 
+-- camera
+
 CAM={
     x=0,y=0
 }
 
 function updateCam(cam,e)
     cam.x=e.pos.x-W//2
-    cam.y=e.pos.y-H//2
+    cam.y=max(0, e.pos.y-H//2)
 end
+
+-- map
 
 function drawMap( cam )
     local cx,cy = cam.x // T, cam.y // T
     local offx, offy = cx * T - cam.x, cy * T - cam.y
-    map(cx,cy,31,18,offx,offy,-1,1,function(tile,x,y)
+    map(cx,cy,31,18,offx,offy,0,1,function(tile,x,y)
         local outTile,flip,rotate=tile,0,0
         if MAP[y][x].dug then
-            outTile = 20
+            outTile = 0
         end
         if MAP[y][x].debug then
             outTile = 17
@@ -713,23 +740,33 @@ function drawMap( cam )
     end)
 end
 
--- map
+GROUND_HEIGT_T  = 10
+GROUND_HEIGT    = GROUND_HEIGT_T * T
+WALL_LEFT_T     = 4
+WALL_LEFT       =WALL_LEFT_T * T
+WALL_RIGHT_T    = W - 4
+WALL_RIGHT      = WALL_RIGHT_T * T
+WALL_DOWN_T     = H - 4
 
 function generateMap()
     for y=0,MAP_H-1 do
         MAP[y] = {}
         for x=0,MAP_W-1 do
             tile = 1
-            if y > 10 then
+            if y > GROUND_HEIGT_T then
                 tile=rnd(1,4)
             end
+            if x < WALL_LEFT_T or x > WALL_RIGHT_T or y > WALL_DOWN_T then
+                tile=5
+            end
+
             local map_tile=deepcopy(def_tile)
             map_tile.block=TILES_TO_BLOCKS[tile]
-            if x > 10 and x < 100 then
-                if y > 5 and y < 9 then
-                    map_tile.seen=true
-                    map_tile.dug=true
-                end
+            if y <= GROUND_HEIGT_T and x >= WALL_LEFT_T and x <= WALL_RIGHT_T then
+                map_tile.seen=true
+                map_tile.dug=true
+            elseif y < GROUND_HEIGT_T + RADARS[1].value // T then
+                map_tile.seen=true
             end
             MAP[y][x]=map_tile
             mset(x, y, tile)
@@ -741,7 +778,7 @@ end
 
 function init()
     generateMap()
-    PLAYER.pos.x=W//2
+    PLAYER.pos.x=W*T-50
     PLAYER.pos.y=H//2
     PLAYER.money=0
     PLAYER.fuel_tank=FUEL_TANKS[1]
@@ -756,7 +793,7 @@ function init()
 end
 
 function TICGame()
-    cls()
+    cls(15)
     updateCam(CAM, PLAYER)
     draw(CAM, PLAYER)
     -- local x,y=mouse()

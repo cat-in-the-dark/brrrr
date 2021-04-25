@@ -30,6 +30,27 @@ max=math.max
 abs=math.abs
 sf=string.format
 
+-- helpers
+
+function printframe(text,x,y,c,fc,small)
+    c = c or 15
+    fc = fc or 0
+    small = small or false
+    print(text,x-1,y,fc,false,1,small)
+    print(text,x+1,y,fc,false,1,small)
+    print(text,x,y-1,fc,false,1,small)
+    print(text,x,y+1,fc,false,1,small)
+    print(text,x-1,y-1,fc,false,1,small)
+    print(text,x+1,y-1,fc,false,1,small)
+    print(text,x-1,y+1,fc,false,1,small)
+    print(text,x+1,y+1,fc,false,1,small)
+    print(text,x,y,c,false,1,small)
+end
+
+function safe1( f, arg )
+    if f ~= nil then f(arg) end
+end
+
 function deepcopy(orig)
     local orig_type = type(orig)
     local copy
@@ -44,6 +65,140 @@ function deepcopy(orig)
     end
     return copy
 end
+
+function table.index(table, element)
+    for i, value in pairs(table) do
+      if value == element then
+        return i
+      end
+    end
+    return nil
+end
+
+-- buttons
+
+Button={
+    x=0,
+    y=0,
+    w=0,
+    h=0,
+    pressed=false,
+    hover=false,
+    color=0,
+    sp={},
+    offx=0,
+    offy=0,
+    text=nil,
+    on_enter=nil,
+    on_hover=nil,
+    on_press=nil,
+    on_release=nil,
+    on_leave=nil
+}
+
+
+function g_press( btn )
+    btn.color = 6
+end
+
+function g_release( btn )
+    btn.color = 7
+end
+
+function g_hover( btn )
+    btn.color = 8
+end
+
+function g_leave( btn )
+    btn.color = btn.orig_c
+end
+  
+function make_button( x, y, w, h, color, item, text, on_hover, on_leave, on_press, on_release, on_enter, sp, offx, offy, on_draw )
+    local btn = deepcopy(Button)
+    btn.x, btn.y = x,y
+    btn.w, btn.h = w,h
+    btn.color = color
+    btn.orig_c = color
+    btn.on_hover = on_hover
+    btn.on_leave = on_leave
+    btn.on_press = on_press
+    btn.on_release = on_release
+    btn.on_enter = on_enter
+    btn.text=text
+    btn.item=item
+    btn.sp = sp
+    btn.offx = offx
+    btn.offy = offy
+    btn.on_draw = on_draw
+    return btn
+end
+  
+function check_button( btn, mx, my, md )
+    local x,y,r,d = btn.x, btn.y, btn.x + btn.w, btn.y + btn.h
+    local old_hover = btn.hover
+    local old_pressed = btn.pressed
+    if x <= mx and r >= mx and y <= my and d >= my then
+        btn.hover = true
+        if md then
+        btn.pressed = true
+        else
+        btn.pressed = false
+        end
+    else
+        btn.hover = false
+        btn.pressed = false
+    end
+
+    if btn.hover then
+        safe1(btn.on_hover, btn)
+    end
+
+    if old_hover and not btn.hover then
+        safe1(btn.on_leave, btn)
+    elseif not old_hover and btn.hover then
+        safe1(btn.on_enter, btn)
+    end
+    if old_pressed and not btn.pressed then
+        safe1(btn.on_release, btn)
+    elseif btn.pressed and not old_pressed then
+        safe1(btn.on_press, btn)
+    end
+end
+  
+function draw_text_btn( btn,text )
+    rect(btn.x, btn.y, btn.w, btn.h, btn.color)
+    rectb(btn.x, btn.y, btn.w, btn.h, 2)
+    local dx,dy=0,0
+    if btn.pressed then
+        rectb(btn.x + 1, btn.y + 1, btn.w - 1, btn.h - 1, 2)
+        dx,dy=1,1
+    else
+        rectb(btn.x, btn.y, btn.w - 1, btn.h - 1, 2)
+    end
+    local tw,th = print(text, W,H),8
+    printframe(text, btn.x + btn.w/2 - tw/2 + dx, btn.y + btn.h/2 - th/2 + dy, 6)
+end
+
+function draw_button( btn )
+    if btn.on_draw ~= nil then
+        btn.on_draw(btn)
+        return
+    end
+    if btn.text ~= nil then
+        draw_text_btn(btn, btn.text)
+        return
+    end
+    rect(btn.x, btn.y, btn.w, btn.h, btn.color)
+    rectb(btn.x, btn.y, btn.w, btn.h, 2)
+    rectb(btn.x + 1, btn.y + 1, btn.w - 1, btn.h - 1, 2)
+    if btn.item ~= nil then
+        local item,x,y,w,h = btn.item,btn.x,btn.y,btn.w,btn.h
+        local ent = {pos={x=x, y=y}, sp=item.sp, offx=btn.offx, offy=btn.offy}
+        draw_ent(ent)
+    end
+end
+
+-- minerals
 
 RESOURCES={
     COAL={
@@ -291,7 +446,7 @@ function remaining_capacity( pl )
     for i,item in ipairs(pl.container_items) do
         mass = mass + item.mass
     end
-    return pl.container.capacity - mass
+    return pl.container.value - mass
 end
 
 function burr(pl)
@@ -304,13 +459,12 @@ function burr(pl)
                 return
             end
 
-            local tile = mget(x, y)
             -- dig tile
-            MAP[y][x].wear = MAP[y][x].wear - pl.engine.power / TILES_TO_BLOCKS[tile].hardness
+            local tile = mget(x, y)
+            MAP[y][x].wear = MAP[y][x].wear - pl.engine.value / TILES_TO_BLOCKS[tile].hardness
 
             -- drain fuel
-
-            pl.fuel = pl.fuel - pl.engine.power / 10
+            pl.fuel = pl.fuel - pl.engine.value / 10
             if pl.fuel < 0 then pl.fuel = 0 end
 
             if MAP[y][x].wear <= 0 then
@@ -318,7 +472,7 @@ function burr(pl)
                 local blk = MAP[y][x].block
                 local res = blk.resource
                 if res ~= nil then
-                    if math.random() < blk.prob * pl.burr.quality then
+                    if math.random() < blk.prob * pl.burr.value then
                         if remaining_capacity(pl) >= res.mass then
                             table.insert( pl.container_items, res )
                         end
@@ -330,7 +484,7 @@ function burr(pl)
 end
 
 function refuel(pl)
-    local cap = pl.fuel_tank.capacity - pl.fuel
+    local cap = pl.fuel_tank.value - pl.fuel
     trace(cap)
     local cost = min(cap * FUEL_PRICE, pl.money)
     trace(cost)
@@ -401,15 +555,26 @@ end
 function draw_ent(e, cam)
     local i=1
     local dx,dy=0,0
-    local cx,cy = e.pos.x + e.center.x, e.pos.y + e.center.y
-    local x0,y0 = rot_2d(e.pos.x,           e.pos.y, cx, cy, e.rot)
-    local x1,y1 = rot_2d(e.pos.x + e.pos.w, e.pos.y, cx, cy, e.rot)
-    local x2,y2 = rot_2d(e.pos.x,           e.pos.y + e.pos.h, cx, cy, e.rot)
-    local x3,y3 = rot_2d(e.pos.x + e.pos.w, e.pos.y + e.pos.h, cx, cy, e.rot)
-
     if cam ~= nil then dx,dy = -cam.x,-cam.y end
-    textri(x0+dx, y0+dy, x1+dx, y1+dy, x2+dx, y2+dy, e.tex.x, e.tex.y, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, false, 0)
-    textri(x1+dx, y1+dy, x2+dx, y2+dy, x3+dx, y3+dy, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, e.tex.x + e.tex.w, e.tex.y + e.tex.h, false, 0)
+    if e.tex ~= nil then
+        local cx,cy = e.pos.x + e.center.x, e.pos.y + e.center.y
+        local x0,y0 = rot_2d(e.pos.x,           e.pos.y, cx, cy, e.rot)
+        local x1,y1 = rot_2d(e.pos.x + e.pos.w, e.pos.y, cx, cy, e.rot)
+        local x2,y2 = rot_2d(e.pos.x,           e.pos.y + e.pos.h, cx, cy, e.rot)
+        local x3,y3 = rot_2d(e.pos.x + e.pos.w, e.pos.y + e.pos.h, cx, cy, e.rot)
+
+        textri(x0+dx, y0+dy, x1+dx, y1+dy, x2+dx, y2+dy, e.tex.x, e.tex.y, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, false, 0)
+        textri(x1+dx, y1+dy, x2+dx, y2+dy, x3+dx, y3+dy, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, e.tex.x + e.tex.w, e.tex.y + e.tex.h, false, 0)
+    elseif e.sp ~= nil then
+        local offx,offy = e.offx, e.offy
+        if offx == nil then offx = 0 end
+        if offy == nil then offy = 0 end
+        for i,t in ipairs(e.sp) do
+            for j,v in ipairs(t) do
+                spr(v, e.pos.x+(j-1)*T + offx + dx, e.pos.y+(i-1)*T + offy + dy, 0)
+            end
+        end
+    end
 end
 
 function drawHud( pl )
@@ -417,7 +582,7 @@ function drawHud( pl )
     local w = print(str, W, H)
     print(str, W-w, H-8, 12)
 
-    str = sf("fuel: %.1f/%.1f, cargo: %.0f/%.0f", pl.fuel, pl.fuel_tank.capacity, remaining_capacity(pl), pl.container.capacity)
+    str = sf("fuel: %.1f/%.1f, cargo: %.0f/%.0f", pl.fuel, pl.fuel_tank.value, remaining_capacity(pl), pl.container.value)
     w = print(str, W, H)
     print(str, W-w, H-16, 12)
 end
@@ -435,27 +600,27 @@ end
 FUEL_PRICE=1.0
 
 FUEL_TANKS={
-    DEFAULT={capacity=100},
-    LARGE={capacity=200},
-    XL={capacity=300}
+    [1]={value=100, name="basic", price=0},
+    [2]={value=200, name="large" , price=400},
+    [3]={value=300, name="XL", price=800}
 }
 
 BURRS={
-    DEFAULT={quality=1.0},
-    FINE={quality=1.1},
-    FINEST={quality=1.2}
+    [1]={value=1.0, name="basic", price=0},
+    [2]={value=1.1, name="fine", price=500},
+    [3]={value=1.2, name="precise", price=1000}
 }
 
 CONTAINERS={
-    DEFAULT={capacity=100},
-    LARGE={capacity=200},
-    XL={capacity=300}
+    [1]={value=100, name="basic", price=0},
+    [2]={value=200, name="large", price=400},
+    [3]={value=300, name="XL", price=800}
 }
 
 ENGINES={
-    DEFAULT={power=1.0},
-    V8={power=2.0},
-    GRETA={power=3.0}
+    [1]={value=1.0, name="basic", price=0},
+    [2]={value=2.0, name="v8", price=1000},
+    [3]={value=3.0, name="greta", price=2000}
 }
 
 PLAYER={
@@ -463,12 +628,12 @@ PLAYER={
     center=v2(8, 8),
     cc={x=8,y=8,r=8},
     burr_poly={v2(16,0), v2(32,8), v2(16,16)},
-    burr=BURRS.DEFAULT,
-    container=CONTAINERS.DEFAULT,
+    burr=BURRS[1],
+    container=CONTAINERS[1],
     container_items={},
-    engine=ENGINES.DEFAULT,
-    fuel_tank=FUEL_TANKS.DEFAULT,
-    fuel=FUEL_TANKS.DEFAULT.capacity,
+    engine=ENGINES[1],
+    fuel_tank=FUEL_TANKS[1],
+    fuel=FUEL_TANKS[1].value,
     money=0,
     rot=0,
     st=ST.IDLE,
@@ -551,12 +716,12 @@ function init()
     PLAYER.pos.x=W//2
     PLAYER.pos.y=H//2
     PLAYER.money=0
-    PLAYER.fuel_tank=FUEL_TANKS.DEFAULT
-    PLAYER.fuel=FUEL_TANKS.DEFAULT.capacity
-    PLAYER.container=CONTAINERS.DEFAULT
+    PLAYER.fuel_tank=FUEL_TANKS[1]
+    PLAYER.fuel=FUEL_TANKS[1].value
+    PLAYER.container=CONTAINERS[1]
     PLAYER.container_items={}
-    PLAYER.burr=BURRS.DEFAULT
-    PLAYER.engine=ENGINES.DEFAULT
+    PLAYER.burr=BURRS[1]
+    PLAYER.engine=ENGINES[1]
     MODE=MOD_GAME
     OLD_MODE=nil
 end
@@ -585,11 +750,123 @@ function TICGame()
     if keyp(KEY_Q) then MODE=MOD_SHOP end
 end
 
+function text_width(text, small)
+    return print(text,W,H,15,false,1,small)
+end
+
+function on_upgrade_hover(btn)
+    if btn.item ~= nil and btn.target_item ~= nil and btn.item ~= btn.target_item then
+        g_hover(btn)
+        local mx,my = mouse()
+        local dx,dy = 5, 5
+        local value = sf(btn.format, btn.item.value)
+        local text=sf("%s\n%s: %s\n$%d", btn.item.name, btn.target_spec, value, btn.item.price)
+        local width = text_width(text,true)
+        text=sf("%s\n%s: %s\n", btn.item.name, btn.target_spec, value)
+        local x,y,w,h=math.min(W-width, mx + dx), my+dy, width+6, 24
+        rect(x-4,y-4,w,h,8)
+        rectb(x-3,y-3,w,h,2)
+        printframe(text,x,y,15,0,true)
+        -- price
+        text=sf("$%d", btn.item.price)
+        local w1=text_width(text,true)
+        printframe(text, x+width-w1, y+13,6,0,true)
+    end
+end
+
+function on_upgrade_click(btn)
+    if btn.item ~= nil and btn.upgrade_callback ~= nil then
+        btn.upgrade_callback(btn.item)
+    end
+end
+
+-- function make_button( x, y, w, h, color, item, text, on_hover, on_leave, on_press, on_release, on_enter, sp, offx, offy, on_draw )
+function make_upgrade_button(x, y, upgrade, target_item, target_spec, format, callback)
+    local btn = make_button(x, y, 16, 16, 2, upgrade, nil, on_upgrade_hover, g_leave, g_press, on_upgrade_click, nil, nil, 2, 2)
+    btn.target_item = target_item
+    btn.target_spec = target_spec
+    btn.format = format
+    btn.upgrade_callback = callback
+    return btn
+end
+
+SHOP_BUTTONS={}
+
+function buy_item(pl, item, to_replace, items_container)
+    if pl.money >= item.price then
+        trace(to_replace)
+        trace(pl[to_replace])
+        trace(pl[to_replace].name)
+        if item ~= pl[to_replace] then
+            if table.index(items_container, item) > table.index(items_container, pl[to_replace]) then
+                pl.money = pl.money - item.price
+                pl[to_replace] = item
+            else
+                trace("can't downgrade")
+            end
+        else
+            trace("can't buy same item")
+        end
+    else
+        trace("not enough money")
+    end
+end
+
+function initShopButtons(pl)
+    SHOP_BUTTONS={}
+    local startX, startY = 10, 20
+    trace(#ENGINES)
+    for i,v in ipairs(ENGINES) do
+        local offX = (i-1) * 24
+        local btn = make_upgrade_button(startX + offX, startY, v, pl.engine, "Power", "%.1fx", function(item)
+            buy_item(pl, item, "engine", ENGINES)
+        end)
+        table.insert(SHOP_BUTTONS, btn)
+    end
+    for i,v in ipairs(BURRS) do
+        local offX = (i-1) * 24
+        local btn = make_upgrade_button(startX + offX, startY + 24, v, pl.burr, "Recovery", "x%.1f", function(item)
+            buy_item(pl, item, "burr", BURRS)
+        end)
+        table.insert(SHOP_BUTTONS, btn)
+    end
+    for i,v in ipairs(FUEL_TANKS) do
+        local offX = (i-1) * 24
+        local btn = make_upgrade_button(startX + offX, startY + 48, v, pl.fuel_tank, "Volume", "%d", function(item)
+            buy_item(pl, item, "fuel_tank", FUEL_TANKS)
+        end)
+        table.insert(SHOP_BUTTONS, btn)
+    end
+    for i,v in ipairs(CONTAINERS) do
+        local offX = (i-1) * 24
+        local btn = make_upgrade_button(startX + offX, startY + 72, v, pl.container, "Volume", "%d", function(item)
+            buy_item(pl, item, "container", CONTAINERS)
+        end)
+        table.insert(SHOP_BUTTONS, btn)
+    end
+end
+
+function update_buttons(btns)
+    local mx,my,md = mouse()
+    for i,v in ipairs(btns) do
+        draw_button(v)
+    end
+    for i,v in ipairs(btns) do
+        check_button(v, mx, my, md)
+    end
+end
+
+function initShop()
+    initShopButtons(PLAYER)
+end
+
 function TICShop()
     cls()
     str = "Welcome to shop!"
     w = print(str, W, H)
     print(str, W//2 - w // 2, H // 2, 12)
+    drawHud(PLAYER)
+    update_buttons(SHOP_BUTTONS)
     if keyp(KEY_Q) then MODE=MOD_GAME end
 end
 
@@ -601,6 +878,10 @@ MOD_SHOP = 2
 TIC_MODE={
     [MOD_GAME]=TICGame,
     [MOD_SHOP]=TICShop,
+}
+
+INITS={
+    [MOD_SHOP]=initShop
 }
 
 init()

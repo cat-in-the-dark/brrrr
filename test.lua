@@ -1,6 +1,8 @@
 -- title:  Remap demo
 -- author: AnastasiaDunbar, Lua translation by StinkerB06
 
+DEBUG=true
+
 W=240
 H=136
 T=8
@@ -830,12 +832,14 @@ function TICGame()
     -- print(sf("%s %s", tile.block.name, tile.dug), mx*T+T, my*T+T, 12)
     -- if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
     -- if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
-    -- if keyp(KEY_S) then
-    --     sell_resources(PLAYER)
-    -- end
-    -- if keyp(KEY_F) then
-    --     refuel(PLAYER)
-    -- end
+    if DEBUG then
+        if keyp(KEY_S) then
+            sell_resources(PLAYER)
+        end
+        if keyp(KEY_F) then
+            refuel(PLAYER)
+        end
+    end
     burr(PLAYER)
     move_player(PLAYER)
     -- animation

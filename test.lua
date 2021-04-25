@@ -665,8 +665,11 @@ end
 
 function drawHud( pl )
     local str = sf("$%.0f", pl.money)
-    local w = print(str, W, H)
-    print(str, W-w, H-8, 12)
+    local tw = text_width(str)
+    local bg_clr=6
+    rect(0, 0, tw+6,12,bg_clr)
+    tri(tw+6,11, tw+6,0, tw+17,0, bg_clr)
+    printframe(str, 3, 3, 12)
 end
 
 function drawSky(cam)
@@ -1143,21 +1146,28 @@ end
 function on_sell_press(btn)
     sell_resources(PLAYER)
     initShopButtons(PLAYER)
+    initUiButtons(PLAYER)
 end
 
 function on_buy_press(btn)
     refuel(PLAYER)
     initShopButtons(PLAYER)
+    initUiButtons(PLAYER)
 end
 
 -- make_button( x, y, w, h, color, item, text, on_hover, on_leave, on_press, on_release, on_enter, sp, offx, offy, on_draw )
 function initUiButtons(pl)
-    local quit = make_button(W-32, 0, 32, 12, 3, nil, "Quit", g_hover, g_leave, on_quit_press)
+    UI_BUTTONS={}
+    local quit = make_button(W-32, H-12, 32, 12, 3, nil, "Quit", g_hover, g_leave, on_quit_press)
     table.insert( UI_BUTTONS,quit )
-    local sell_cargo = make_button(150, 42, 82, 12, 3, nil, "Sell minerals", g_hover, g_leave, on_sell_press)
-    table.insert( UI_BUTTONS,sell_cargo )
-    local buy_fuel = make_button(180, 64, 52, 12, 3, nil, "Buy fuel", g_hover, g_leave, on_buy_press)
-    table.insert( UI_BUTTONS,buy_fuel )
+    if cargo_mass(pl) > 0 then
+        local sell_cargo = make_button(196, 15, 32, 12, 3, nil, "Sell", g_hover, g_leave, on_sell_press)
+        table.insert( UI_BUTTONS,sell_cargo )
+    end
+    if pl.fuel < pl.fuel_tank.value then
+        local buy_fuel = make_button(160, H-12, 32, 12, 3, nil, "Buy", g_hover, g_leave, on_buy_press)
+        table.insert( UI_BUTTONS,buy_fuel )
+    end
 end
 
 function update_buttons(btns)
@@ -1188,11 +1198,21 @@ function draw_fuel_bar(pl)
     rect(0,y-offY*2,w+offX*2,H-y+offY*2,bg_clr)
     rect(offX,y, pl.fuel * w / total, h, 2)
     rectb(offX,y,w,h,0)
-    printframe("Fuel", offX, fy+4, 12)
+    printframe(str, offX, fy+4, 12)
 end
 
 function draw_cargo_bar(pl, print_legend)
-    local x,y,w,h = 226, 20, 10, 110
+    local w,h = 10, 115
+    local offX,offY=1,3
+    local x,y = W-w-offX, offY
+
+    local bg_clr=13
+    local str="Cargo"
+    local tw=text_width(str)
+    rect(x-tw-offX*3,0,W-(x-tw-offX*3),12,bg_clr)
+    rect(x-offX,0,W-(x-offX),h+offY*2,bg_clr)
+    printframe(str,x-tw-offX,offY,12)
+
     local total,current = pl.container.value, cargo_mass(pl)
     if current > total then total = current end  -- consider overload
     local by_name = {}
@@ -1212,7 +1232,7 @@ function draw_cargo_bar(pl, print_legend)
     local drawY = y+h
     for k,v in pairs(by_name) do
         local barH = v.mass * h / total
-        rect(x, drawY-barH, w, barH, v.color)
+        rect(x, drawY-barH, w, barH+1, v.color)
 
         if print_legend then
             local textH = barH/2+12/2
@@ -1225,12 +1245,12 @@ function draw_cargo_bar(pl, print_legend)
         drawY=drawY-barH
     end
 
-    rectb(x,y,w,h,1)
+    rectb(x,y,w,h,0)
 end
 
 function TICShop()
     cls()
-    print("Upgrades", 40, 2, 12)
+    print("Upgrades", 72, 2, 12)
     drawHud(PLAYER)
     local startX,startY=5,20
     print("ENGINE", startX, startY, 12)

@@ -757,8 +757,8 @@ ENGINE_GEN={
 
 ENGINES={
     [1]={value=1.0, name=ENGINE_GEN.names[1], price=0},
-    [2]={value=2.0, name=ENGINE_GEN.names[2], price=1000},
-    [3]={value=3.0, name=ENGINE_GEN.names[3], price=2000}
+    [2]={value=1.2, name=ENGINE_GEN.names[2], price=1000},
+    [3]={value=1.5, name=ENGINE_GEN.names[3], price=2000}
 }
 
 RDR_GEN={
@@ -981,10 +981,10 @@ function init()
     OLD_MODE=nil
     PREV_MODE=nil
     if debug then
-        -- PLAYER.engine=ENGINES[3]
-        -- PLAYER.burr=BURRS[2]
-        -- PLAYER.fuel=10000
-        -- PLAYER.money=10000
+        PLAYER.engine=ENGINES[3]
+        PLAYER.burr=BURRS[2]
+        PLAYER.fuel=10000
+        PLAYER.money=10000
     end
 end
 
@@ -1246,19 +1246,22 @@ end
 -- resource=nil
 function upgradeBlocks()
     for i,block in ipairs(BLOCKS) do
-        local new_hardness = ((block.hardness * HARDNESS_INCREMENT // 5)) * 5
-        if new_hardness == block.hardness then new_hardness = new_hardness + 1 end
-        block.hardness=new_hardness
-        if block.resource ~= nil then
-            local new_val = ((block.resource.value * RESOURCE_VAL_INCREMENT) // 5) * 5
-            if new_val == block.resource.value then new_val = new_val + 1 end
-            trace(sf("new price: %d", new_val))
-            block.resource.value = new_val
-            local new_mass = math.floor(block.resource.mass * MASS_INCREMENT)
-            trace(sf("new mass = %d", new_mass))
-            if new_mass == block.resource.mass then new_mass = new_mass + 1 end
-            trace(sf("new mass[1] = %d", new_mass))
-            block.resource.mass = new_mass
+        if block.hardness ~= -1 then  -- obsidian
+            local new_hardness = ((block.hardness * HARDNESS_INCREMENT // 5)) * 5
+            if new_hardness == block.hardness then new_hardness = new_hardness + 1 end
+            trace(sf("new hardness %d: %d", i, new_hardness))
+            block.hardness=new_hardness
+            if block.resource ~= nil then
+                local new_val = ((block.resource.value * RESOURCE_VAL_INCREMENT) // 5) * 5
+                if new_val == block.resource.value then new_val = new_val + 1 end
+                trace(sf("new price: %d", new_val))
+                block.resource.value = new_val
+                local new_mass = math.floor(block.resource.mass * MASS_INCREMENT)
+                trace(sf("new mass = %d", new_mass))
+                if new_mass == block.resource.mass then new_mass = new_mass + 1 end
+                trace(sf("new mass[1] = %d", new_mass))
+                block.resource.mass = new_mass
+            end
         end
     end
 end
@@ -1272,22 +1275,41 @@ function incrementLevel()
     upgradeBlocks()
 end
 
-MAP_GEN_Y=0
 LVL=0
 function initNextMap()
     MAP_GEN_Y=0
+    CLUSTER_GEN=0
+    RES_GEN=1
     LVL=LVL+1
     incrementLevel()
 end
 
 function TICNextMap()
-    local increment = 2
-    generateMap(MAP_GEN_Y, min(H-1, MAP_GEN_Y + increment))
-    TICGame()
-    MAP_GEN_Y = MAP_GEN_Y + increment
+    local increment = 5
+    local cluster_increment=20
     if MAP_GEN_Y > H-1 then
-        MODE=MOD_GAME
+        if RES_GEN > #RESOURCES then
+            MODE=MOD_GAME
+            return
+        end
+
+        local res = RESOURCES[RES_GEN]
+        cluster_increment = min(cluster_increment, res.clusters - CLUSTER_GEN)
+        for i=1,cluster_increment do
+            putCluster(res.parent, res.cluster_len)
+        end
+
+        CLUSTER_GEN=CLUSTER_GEN + cluster_increment
+        if CLUSTER_GEN >= res.clusters then
+            CLUSTER_GEN=0
+            RES_GEN = RES_GEN + 1
+        end        
+    else
+        generateMap(MAP_GEN_Y, min(H-1, MAP_GEN_Y + increment))
+        MAP_GEN_Y = MAP_GEN_Y + increment
     end
+
+    TICGame()
 end
 
 MOD_GAME = 1

@@ -448,11 +448,15 @@ function cargo_mass( pl )
     return mass
 end
 
+function getMap(x, y)
+    return MAP[y % H][x % W]
+end
+
 function burr(pl)
     local res = rot_poly(pl.burr_poly, pl.center.x, pl.center.y, pl.rot)
     res = move_poly(res, pl.pos)
     collide_tile_poly(res, function(x, y)
-        if not MAP[y][x].dug then
+        if not getMap(x,y).dug then
             if pl.fuel <= 0 then
                 -- trace("no fuel!")
                 return
@@ -520,6 +524,22 @@ function check_shop(shop, pl)
     if res then MODE = MOD_SHOP end
 end
 
+fall_speed = 0
+function world_bounds(pl)
+    -- map bounds
+    if pl.pos.y + pl.pos.h < GROUND_HEIGT or pl.pos.y >= (H-1) * T - pl.cc.r * 2 then
+        pl.pos.y = pl.pos.y + fall_speed
+        fall_speed = fall_speed + 0.1
+    else
+        fall_speed = 0
+    end
+    if pl.pos.y > H * T then  -- fall back on land
+        pl.pos.y = 0
+        trace("OELUTZ!")
+        MODE=MOD_NEXT_MAP
+    end
+end
+
 function move_player(pl)
     local dx,dy,rot,speed=0,0,0,1
     if btn(UP) then dy=-speed end
@@ -548,7 +568,7 @@ function move_player(pl)
         local tangle,txn,tyn
         local min_dist = nil
         collide_tile_cicrle({x=target.x, y=target.y, r=pl.cc.r}, function(x, y, dist, angle, xn, yn)
-            if not MAP[y][x].dug then
+            if not getMap(x,y).dug then
                 hit=true
                 if min_dist == nil or dist < min_dist then
                     min_dist = dist
@@ -575,11 +595,6 @@ function move_player(pl)
     pl.rot=rot
     pl.pos.x = pl.pos.x + dx
     pl.pos.y = pl.pos.y + dy
-
-    -- map bounds
-    if pl.pos.y + pl.pos.h < GROUND_HEIGT then
-        pl.pos.y = GROUND_HEIGT - pl.pos.h
-    end
 end
 
 function draw_ent(e, cam)
@@ -623,8 +638,11 @@ function drawSky(cam)
     rect(0, 0, W, sky_height, 10)
 end
 
+GROUND_HEIGT_T  = 12
+GROUND_HEIGT    = GROUND_HEIGT_T * T
+
 SHOP={
-    pos=v2((W*T)//2-80,48),
+    pos=v2((W*T)//2-80,GROUND_HEIGT-32),
     sp=make_tex(336,6,4),
     cr={x=0,y=6,w=48,h=26}
 }
@@ -730,7 +748,7 @@ CAM={
 
 function updateCam(cam,e)
     cam.x=e.pos.x-W//2
-    cam.y=max(0, e.pos.y-H//2)
+    cam.y=e.pos.y-H//2
 end
 
 -- map
@@ -764,23 +782,22 @@ function drawMap( cam )
     end)
 end
 
-GROUND_HEIGT_T  = 10
-GROUND_HEIGT    = GROUND_HEIGT_T * T
 WALL_LEFT_T     = 4
 WALL_LEFT       =WALL_LEFT_T * T
 WALL_RIGHT_T    = W - 4
 WALL_RIGHT      = WALL_RIGHT_T * T
-WALL_DOWN_T     = H - 4
 
-function generateMap()
-    for y=0,MAP_H-1 do
+function generateMap(startY,endY)
+    startY = startY or 0
+    endY = endY or MAP_H-1
+    for y=startY,endY do
         MAP[y] = {}
         for x=0,MAP_W-1 do
             tile = 1
             if y > GROUND_HEIGT_T then
                 tile=rnd(1,4)
             end
-            if x < WALL_LEFT_T or x > WALL_RIGHT_T or y > WALL_DOWN_T then
+            if x < WALL_LEFT_T or x > WALL_RIGHT_T then
                 tile=5
             end
 
@@ -814,9 +831,18 @@ function init()
     PLAYER.radar=RADARS[1]
     MODE=MOD_GAME
     OLD_MODE=nil
+    if debug then
+        PLAYER.engine=ENGINES[3]
+        PLAYER.fuel=10000
+    end
 end
 
+SKIP_INIT_GAME = false
 function initGame()
+    if SKIP_INIT_GAME then
+        SKIP_INIT_GAME = false
+        return
+    end
     PLAYER.pos.x=(W*T)//2
     PLAYER.pos.y=H//2
 end
@@ -842,6 +868,7 @@ function TICGame()
     end
     burr(PLAYER)
     move_player(PLAYER)
+    world_bounds(PLAYER)
     -- animation
     -- gameTicks=gameTicks+1
     check_shop(SHOP, PLAYER)
@@ -1009,19 +1036,39 @@ function TICShop()
     -- if keyp(KEY_Q) then MODE=MOD_GAME end
 end
 
+MAP_GEN_Y=0
+function initNextMap()
+    MAP_GEN_Y=0
+    -- MAP={}
+end
+
+function TICNextMap()
+    local increment = 2
+    generateMap(MAP_GEN_Y, min(H-1, MAP_GEN_Y + increment))
+    TICGame()
+    MAP_GEN_Y = MAP_GEN_Y + increment
+    if MAP_GEN_Y > H-1 then
+        SKIP_INIT_GAME = true
+        MODE=MOD_GAME
+    end
+end
+
 MOD_GAME = 1
 MOD_SHOP = 2
+MOD_NEXT_MAP=3
 
 -- should be below function declarations
 
 TIC_MODE={
     [MOD_GAME]=TICGame,
     [MOD_SHOP]=TICShop,
+    [MOD_NEXT_MAP]=TICNextMap
 }
 
 INITS={
     [MOD_SHOP]=initShop,
-    [MOD_GAME]=initGame
+    [MOD_GAME]=initGame,
+    [MOD_NEXT_MAP]=initNextMap
 }
 
 init()

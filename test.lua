@@ -199,45 +199,75 @@ end
 
 -- minerals
 
+DIRT        = 1
+GRANITE     = 2
+COAL        = 3
+EMERALD     = 4
+OBSIDIAN    = 5
+BASALT      = 6
+HEMATITE    = 7
+
 RESOURCES={
-    [1]={
-        name="coal",
-        value=10,
-        mass=10
+    {
+        name="iron",
+        parent=HEMATITE,
+        value=20,
+        mass=12,
+        cluster_len=50,
+        clusters=100
     },
-    [2]={
+    {
+        name="coal",
+        parent=COAL,
+        value=10,
+        mass=10,
+        cluster_len=60,
+        clusters=100
+    },
+    {
         name="emerald",
+        parent=EMERALD,
         value=100,
-        mass=1
+        mass=1,
+        cluster_len=20,
+        clusters=30
     }
 }
 
 BLOCKS={
-    [1]={
+    [DIRT]={
         name="dirt",
-        hardness=10,
-        resource=nil
+        hardness=10
     },
-    [2]={
+    [GRANITE]={
         name="granite",
-        hardness=10,
-        resource=nil,
+        hardness=20
     },
-    [3]={
+    [COAL]={
         name="coal",
         hardness=10,
-        resource=RESOURCES[1],
-        prob=0.5
+        resource=RESOURCES[2],
+        prob=0.7
     },
-    [4]={
+    [EMERALD]={
         name="emerald",
         hardness=40,
-        resource=RESOURCES[2],
+        resource=RESOURCES[3],
         prob=0.2
     },
-    [5]={
+    [OBSIDIAN]={
         name="obsidian",
         hardness=-1
+    },
+    [BASALT]={
+        name="basalt",
+        hardness=25
+    },
+    [HEMATITE]={
+        name="hematite",
+        hardness=15,
+        resource=RESOURCES[1],
+        prob=0.5
     }
 }
 
@@ -250,14 +280,6 @@ def_tile={
 }
 
 MAP={}
-
-TILES_TO_BLOCKS={
-    [1]=BLOCKS[1],
-    [2]=BLOCKS[2],
-    [3]=BLOCKS[3],
-    [4]=BLOCKS[4],
-    [5]=BLOCKS[5]
-}
 
 ST={
     IDLE=1,
@@ -476,11 +498,11 @@ function burr(pl)
             local tile = mget(x, y)
 
             -- special edge tiles
-            if TILES_TO_BLOCKS[tile].hardness == -1 then
+            if BLOCKS[tile].hardness == -1 then
                 return
             end
 
-            MAP[y][x].wear = MAP[y][x].wear - pl.engine.value / TILES_TO_BLOCKS[tile].hardness
+            MAP[y][x].wear = MAP[y][x].wear - pl.engine.value / BLOCKS[tile].hardness
 
             -- drain fuel
             pl.fuel = pl.fuel - pl.engine.value / 10
@@ -493,7 +515,6 @@ function burr(pl)
                 if res ~= nil then
                     if math.random() < blk.prob * pl.burr.value then
                         table.insert( pl.container_items, deepcopy(res) )  -- fix mass and value changes in container when move between levels
-                        trace(sf("add %d mass", res.mass))
                     end
                 end
             end
@@ -840,29 +861,64 @@ DEBUG_SPAWN_Y = H-8
 DEBUG_SPAWN_W = 8
 DEBUG_SPAWN_H = 6
 
+HEIGHT_SOFT=20
+HEIGHT_MIDSOFT=50
+HEIGHT_MID=70
+HEIGHT_HARDMID=100
+
+function map_to_one( a, b, n )
+    local dif,minN = abs(a-b), min(a,b)
+    return (n - minN) / dif
+end
+
+function rnd_or(a, b, skew)
+    skew = skew or 0.5
+    local val=rnd()
+    if val < skew then
+        return a
+    else
+        return b
+    end
+end
+
+function generateTile(x, y)
+    local tile = DIRT
+    if y > GROUND_HEIGT_T then
+        if y < HEIGHT_SOFT then
+            tile = DIRT
+        elseif y < HEIGHT_MIDSOFT then
+            tile = rnd_or(GRANITE,DIRT, map_to_one(HEIGHT_SOFT, HEIGHT_MIDSOFT, y))
+        elseif y < HEIGHT_MID then
+            tile=GRANITE
+        elseif y < HEIGHT_HARDMID then
+            tile = rnd_or(BASALT, GRANITE, map_to_one(HEIGHT_MID, HEIGHT_HARDMID, y))
+        else
+            tile=BASALT
+        end
+    end
+    if x < WALL_LEFT_T or x > WALL_RIGHT_T then
+        tile=OBSIDIAN
+    end
+    return tile
+end
+
 function generateMap(startY,endY)
     startY = startY or 0
     endY = endY or MAP_H-1
     for y=startY,endY do
         MAP[y] = {}
         for x=0,MAP_W-1 do
-            tile = 1
-            if y > GROUND_HEIGT_T then
-                tile=rnd(1,4)
-            end
-            if x < WALL_LEFT_T or x > WALL_RIGHT_T then
-                tile=5
-            end
+            local tile=generateTile(x, y)
 
             local map_tile=deepcopy(def_tile)
-            map_tile.block=TILES_TO_BLOCKS[tile]
+            map_tile.block=BLOCKS[tile]
 
-            if DEBUG then
-                if x >= DEBUG_SPAWN_X and x <= DEBUG_SPAWN_X + DEBUG_SPAWN_W and y >= DEBUG_SPAWN_Y and y <= DEBUG_SPAWN_Y + DEBUG_SPAWN_H then
-                    map_tile.seen=true
-                    map_tile.dug=true
-                end
-            end
+            -- if DEBUG then
+            --     if x >= DEBUG_SPAWN_X and x <= DEBUG_SPAWN_X + DEBUG_SPAWN_W and y >= DEBUG_SPAWN_Y and y <= DEBUG_SPAWN_Y + DEBUG_SPAWN_H then
+            --         map_tile.seen=true
+            --         map_tile.dug=true
+            --     end
+            -- end
 
             if y <= GROUND_HEIGT_T and x >= WALL_LEFT_T and x <= WALL_RIGHT_T then
                 map_tile.seen=true
@@ -876,17 +932,43 @@ function generateMap(startY,endY)
     end
 end
 
+function putCluster(tile, size, x, y)
+    x = x or rnd(WALL_LEFT_T, WALL_RIGHT_T-1)
+    y = y or rnd(GROUND_HEIGT_T, MAP_H-1)
+    for i=1,size do
+        if MAP[y] ~= nil and MAP[y][x] ~= nil and not MAP[y][x].dug then
+            local map_tile=deepcopy(def_tile)
+            map_tile.block=BLOCKS[tile]
+            map_tile.seen=MAP[y][x].seen
+            MAP[y][x]=map_tile
+            mset(x, y, tile)
+            local x_inc,y_inc = rnd(-1,1), rnd(-1,1)
+            x,y = x+x_inc, y+y_inc
+        end
+    end
+end
+
 -- init
 
 function init()
     generateMap()
-    if DEBUG then
-        PLAYER.pos.x=DEBUG_SPAWN_X*T
-        PLAYER.pos.y=DEBUG_SPAWN_Y*T
-    else
+    trace("Add resources")
+    trace(#RESOURCES)
+    for i,res in ipairs(RESOURCES) do
+        trace(sf("Add %s %d", res.name, res.mass))
+        for j=1,res.clusters do
+            putCluster(res.parent, res.cluster_len)
+        end
+    end
+
+    putCluster(COAL, 20, W//2, GROUND_HEIGT_T+3)
+    -- if DEBUG then
+        -- PLAYER.pos.x=DEBUG_SPAWN_X*T
+        -- PLAYER.pos.y=DEBUG_SPAWN_Y*T
+    -- else
         PLAYER.pos.x=(W*T)//2
         PLAYER.pos.y=H//2
-    end
+    -- end
     PLAYER.money=500
     PLAYER.fuel_tank=FUEL_TANKS[1]
     PLAYER.fuel=FUEL_TANKS[1].value
@@ -899,10 +981,10 @@ function init()
     OLD_MODE=nil
     PREV_MODE=nil
     if debug then
-        PLAYER.engine=ENGINES[3]
-        PLAYER.burr=BURRS[2]
-        PLAYER.fuel=10000
-        PLAYER.money=10000
+        -- PLAYER.engine=ENGINES[3]
+        -- PLAYER.burr=BURRS[2]
+        -- PLAYER.fuel=10000
+        -- PLAYER.money=10000
     end
 end
 

@@ -1202,8 +1202,7 @@ function draw_cargo_bar(pl, print_legend)
         rect(x, drawY-barH, w, barH, v.color)
 
         if print_legend then
-            local textH = barH
-            if textH < 10 then textH = 10 end
+            local textH = barH/2+12/2
             local str=sf("%s -\n$%.0f", k, v.value)
             local tw = text_width(str,true)
             printframe(str, x-tw, drawY-textH, v.color, 0, true)

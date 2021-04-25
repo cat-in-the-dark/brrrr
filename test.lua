@@ -45,11 +45,11 @@ end
 RESOURCES={
     COAL={
         value=10,
-        weight=10
+        mass=10
     },
     EMERALD={
         value=100,
-        weight=1
+        mass=1
     }
 }
 
@@ -61,18 +61,18 @@ BLOCKS={
     },
     GRANITE={
         name="granite",
-        hardness=30,
+        hardness=10,
         resource=nil,
     },
     COAL={
         name="coal",
-        hardness=20,
+        hardness=10,
         resource=RESOURCES.COAL,
         prob=0.5
     },
     EMERALD={
         name="emerald",
-        hardness=120,
+        hardness=40,
         resource=RESOURCES.EMERALD,
         prob=0.2
     }
@@ -283,6 +283,14 @@ function collide_tile(pos, cr, callback)
     end
 end
 
+function remaining_capacity( container )
+    local mass=0
+    for i,item in ipairs(container.items) do
+        mass = mass + item.mass
+    end
+    return container.capacity - mass
+end
+
 function burr(pl)
     local res = rot_poly(pl.burr_poly, pl.center.x, pl.center.y, pl.rot)
     res = move_poly(res, pl.pos)
@@ -292,6 +300,15 @@ function burr(pl)
             MAP[y][x].wear = MAP[y][x].wear - pl.power / TILES_TO_BLOCKS[tile].hardness
             if MAP[y][x].wear <= 0 then
                 MAP[y][x].dug = true
+                local blk = MAP[y][x].block
+                local res = blk.resource
+                if res ~= nil then
+                    if math.random() < blk.prob then
+                        if remaining_capacity(pl.container) > res.mass then
+                            table.insert( pl.container.items, res )
+                        end
+                    end
+                end
             end
         end
     end)
@@ -370,9 +387,9 @@ end
 PLAYER={
     pos={x=0,y=0,w=32,h=16},
     center=v2(8, 8),
-    cr={x=0,y=0,w=16,h=16},
     cc={x=8,y=8,r=8},
     burr_poly={v2(16,0), v2(32,8), v2(16,16)},
+    container={capacity=100, items={}},
     power=1.0,
     rot=0,
     st=ST.IDLE,
@@ -466,7 +483,6 @@ function TIC()
     -- rectb(mx*T,my*T,T,T,1)
     -- local tile=MAP[my][mx]
     -- print(sf("%s %s", tile.block.name, tile.dug), mx*T+T, my*T+T, 12)
-    trace(sf("%f %f", CAM.x, CAM.y))
     if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
     if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
     burr(PLAYER)

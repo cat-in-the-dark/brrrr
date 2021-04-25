@@ -667,10 +667,6 @@ function drawHud( pl )
     local str = sf("$%.0f", pl.money)
     local w = print(str, W, H)
     print(str, W-w, H-8, 12)
-
-    str = sf("fuel: %.1f/%.1f", pl.fuel, pl.fuel_tank.value)
-    w = print(str, W, H)
-    print(str, W-w, H-16, 12)
 end
 
 function drawSky(cam)
@@ -701,6 +697,7 @@ function draw(cam, pl)
     end
     drawHud(pl)
     draw_cargo_bar(pl, false)
+    draw_fuel_bar(pl)
     if pl.fuel <= 0 then
         local str = "NO FUEL!"
         local w = text_width(str, false)
@@ -1178,6 +1175,22 @@ function initShop()
     initUiButtons(PLAYER)
 end
 
+function draw_fuel_bar(pl)
+    local total = pl.fuel_tank.value
+    local fy=110
+    local x,y,w,h = 15, 125, 150, 10
+    local offX,offY=2,1
+    local bg_clr=10
+    local str="Fuel"
+    local tw = text_width(str)
+    rect(0,fy,tw,H-fy,bg_clr)
+    tri(tw, fy, tw, H, tw+H-fy, H, bg_clr)
+    rect(0,y-offY*2,w+offX*2,H-y+offY*2,bg_clr)
+    rect(offX,y, pl.fuel * w / total, h, 2)
+    rectb(offX,y,w,h,0)
+    printframe("Fuel", offX, fy+4, 12)
+end
+
 function draw_cargo_bar(pl, print_legend)
     local x,y,w,h = 226, 20, 10, 110
     local total,current = pl.container.value, cargo_mass(pl)
@@ -1227,6 +1240,7 @@ function TICShop()
     print("RADAR", startX, startY+80, 12)
 
     draw_cargo_bar(PLAYER, true)
+    draw_fuel_bar(PLAYER)
 
     update_buttons(UI_BUTTONS)
     update_buttons(SHOP_BUTTONS)

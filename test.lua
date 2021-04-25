@@ -32,6 +32,9 @@ max=math.max
 abs=math.abs
 sf=string.format
 
+ALREADY_EQUIPPED="Already equipped"
+NOT_ENOUGH="Not enough money"
+
 -- helpers
 
 function printframe(text,x,y,c,fc,small)
@@ -783,7 +786,7 @@ function drawMap( cam )
 end
 
 WALL_LEFT_T     = 4
-WALL_LEFT       =WALL_LEFT_T * T
+WALL_LEFT       = WALL_LEFT_T * T
 WALL_RIGHT_T    = W - 4
 WALL_RIGHT      = WALL_RIGHT_T * T
 
@@ -884,6 +887,9 @@ function on_upgrade_hover(btn)
     printframe(text,x,y,11,0,true)
     -- price
     text=msg
+    if msg == NOT_ENOUGH then
+        text = sf("$%.0f", btn.item.price)
+    end
     local w1=text_width(text,true)
     local text_clr = 6
     if not res then text_clr = 3 end
@@ -922,13 +928,13 @@ function can_buy(pl, item, to_replace, items_container)
             if pl.money >= item.price then
                 return true, sf("$%d", item.price)
             else
-                return false, "Not enough money"
+                return false, NOT_ENOUGH
             end
         else
             return false, "Better equipped"
         end
     else
-        return false, "Already equipped"
+        return false, ALREADY_EQUIPPED
     end
     return false
 end

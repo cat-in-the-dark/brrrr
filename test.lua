@@ -17,6 +17,7 @@ RIGHT=3
 BTN_Z=4
 BTN_X=5
 KEY_SPACE=48
+KEY_S = 19
 
 pi=math.pi
 rnd=math.random
@@ -304,7 +305,7 @@ function burr(pl)
                 local res = blk.resource
                 if res ~= nil then
                     if math.random() < blk.prob then
-                        if remaining_capacity(pl.container) > res.mass then
+                        if remaining_capacity(pl.container) >= res.mass then
                             table.insert( pl.container.items, res )
                         end
                     end
@@ -312,6 +313,15 @@ function burr(pl)
             end
         end
     end)
+end
+
+function sell_resources(pl)
+    local sum=0
+    for i,item in ipairs(pl.container.items) do
+        sum = sum + item.value
+    end
+    pl.money = pl.money + sum
+    pl.container.items = {}
 end
 
 function move_player(pl)
@@ -377,11 +387,22 @@ function draw_ent(e, cam)
     textri(x1+dx, y1+dy, x2+dx, y2+dy, x3+dx, y3+dy, e.tex.x + e.tex.w, e.tex.y, e.tex.x, e.tex.y+e.tex.h, e.tex.x + e.tex.w, e.tex.y + e.tex.h, false, 0)
 end
 
-function draw(cam)
+function drawHud( pl )
+    local str = sf("$%d", pl.money)
+    local w = print(str, W, H)
+    print(str, W-w, H-8, 12)
+
+    str = sf("%d/%d", remaining_capacity(pl.container), pl.container.capacity)
+    w = print(str, W, H)
+    print(str, W-w, H-16, 12)
+end
+
+function draw(cam, pl)
     drawMap(cam)
     for i,v in ipairs(ENTITIES) do
         draw_ent(v,cam)
     end
+    drawHud(pl)
 end
 
 PLAYER={
@@ -391,6 +412,7 @@ PLAYER={
     burr_poly={v2(16,0), v2(32,8), v2(16,16)},
     container={capacity=100, items={}},
     power=1.0,
+    money=0,
     rot=0,
     st=ST.IDLE,
     tex={x=0,y=128,w=32,h=16}
@@ -471,13 +493,14 @@ function init()
     generateMap()
     PLAYER.pos.x=W//2
     PLAYER.pos.y=H//2
+    PLAYER.money=0
 end
 
 init()
 function TIC()
     cls()
     updateCam(CAM, PLAYER)
-    draw(CAM)
+    draw(CAM, PLAYER)
     -- local x,y=mouse()
     -- local mx,my = (CAM.x + x)//T,(CAM.y + y)//T
     -- rectb(mx*T,my*T,T,T,1)
@@ -485,6 +508,9 @@ function TIC()
     -- print(sf("%s %s", tile.block.name, tile.dug), mx*T+T, my*T+T, 12)
     if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
     if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
+    if keyp(KEY_S) then
+        sell_resources(PLAYER)
+    end
     burr(PLAYER)
     move_player(PLAYER)
     -- animation

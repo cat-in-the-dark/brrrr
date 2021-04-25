@@ -19,6 +19,7 @@ BTN_X=5
 KEY_SPACE=48
 KEY_F = 06
 KEY_S = 19
+KEY_Q = 17
 
 pi=math.pi
 rnd=math.random
@@ -285,12 +286,12 @@ function collide_tile(pos, cr, callback)
     end
 end
 
-function remaining_capacity( container )
+function remaining_capacity( pl )
     local mass=0
-    for i,item in ipairs(container.items) do
+    for i,item in ipairs(pl.container_items) do
         mass = mass + item.mass
     end
-    return container.capacity - mass
+    return pl.container.capacity - mass
 end
 
 function burr(pl)
@@ -305,11 +306,11 @@ function burr(pl)
 
             local tile = mget(x, y)
             -- dig tile
-            MAP[y][x].wear = MAP[y][x].wear - pl.power / TILES_TO_BLOCKS[tile].hardness
+            MAP[y][x].wear = MAP[y][x].wear - pl.engine.power / TILES_TO_BLOCKS[tile].hardness
 
             -- drain fuel
 
-            pl.fuel = pl.fuel - pl.power / 10
+            pl.fuel = pl.fuel - pl.engine.power / 10
             if pl.fuel < 0 then pl.fuel = 0 end
 
             if MAP[y][x].wear <= 0 then
@@ -317,9 +318,9 @@ function burr(pl)
                 local blk = MAP[y][x].block
                 local res = blk.resource
                 if res ~= nil then
-                    if math.random() < blk.prob then
-                        if remaining_capacity(pl.container) >= res.mass then
-                            table.insert( pl.container.items, res )
+                    if math.random() < blk.prob * pl.burr.quality then
+                        if remaining_capacity(pl) >= res.mass then
+                            table.insert( pl.container_items, res )
                         end
                     end
                 end
@@ -341,11 +342,11 @@ end
 
 function sell_resources(pl)
     local sum=0
-    for i,item in ipairs(pl.container.items) do
+    for i,item in ipairs(pl.container_items) do
         sum = sum + item.value
     end
     pl.money = pl.money + sum
-    pl.container.items = {}
+    pl.container_items = {}
 end
 
 function move_player(pl)
@@ -416,7 +417,7 @@ function drawHud( pl )
     local w = print(str, W, H)
     print(str, W-w, H-8, 12)
 
-    str = sf("fuel: %.1f/%.1f, cargo: %.0f/%.0f", pl.fuel, pl.fuel_tank.capacity, remaining_capacity(pl.container), pl.container.capacity)
+    str = sf("fuel: %.1f/%.1f, cargo: %.0f/%.0f", pl.fuel, pl.fuel_tank.capacity, remaining_capacity(pl), pl.container.capacity)
     w = print(str, W, H)
     print(str, W-w, H-16, 12)
 end
@@ -439,15 +440,35 @@ FUEL_TANKS={
     XL={capacity=300}
 }
 
+BURRS={
+    DEFAULT={quality=1.0},
+    FINE={quality=1.1},
+    FINEST={quality=1.2}
+}
+
+CONTAINERS={
+    DEFAULT={capacity=100},
+    LARGE={capacity=200},
+    XL={capacity=300}
+}
+
+ENGINES={
+    DEFAULT={power=1.0},
+    V8={power=2.0},
+    GRETA={power=3.0}
+}
+
 PLAYER={
     pos={x=0,y=0,w=32,h=16},
     center=v2(8, 8),
     cc={x=8,y=8,r=8},
     burr_poly={v2(16,0), v2(32,8), v2(16,16)},
-    container={capacity=100, items={}},
+    burr=BURRS.DEFAULT,
+    container=CONTAINERS.DEFAULT,
+    container_items={},
+    engine=ENGINES.DEFAULT,
     fuel_tank=FUEL_TANKS.DEFAULT,
     fuel=FUEL_TANKS.DEFAULT.capacity,
-    power=1.0,
     money=0,
     rot=0,
     st=ST.IDLE,
@@ -532,10 +553,15 @@ function init()
     PLAYER.money=0
     PLAYER.fuel_tank=FUEL_TANKS.DEFAULT
     PLAYER.fuel=FUEL_TANKS.DEFAULT.capacity
+    PLAYER.container=CONTAINERS.DEFAULT
+    PLAYER.container_items={}
+    PLAYER.burr=BURRS.DEFAULT
+    PLAYER.engine=ENGINES.DEFAULT
+    MODE=MOD_GAME
+    OLD_MODE=nil
 end
 
-init()
-function TIC()
+function TICGame()
     cls()
     updateCam(CAM, PLAYER)
     draw(CAM, PLAYER)
@@ -556,4 +582,34 @@ function TIC()
     move_player(PLAYER)
     -- animation
     -- gameTicks=gameTicks+1
+    if keyp(KEY_Q) then MODE=MOD_SHOP end
+end
+
+function TICShop()
+    cls()
+    str = "Welcome to shop!"
+    w = print(str, W, H)
+    print(str, W//2 - w // 2, H // 2, 12)
+    if keyp(KEY_Q) then MODE=MOD_GAME end
+end
+
+MOD_GAME = 1
+MOD_SHOP = 2
+
+-- should be below function declarations
+
+TIC_MODE={
+    [MOD_GAME]=TICGame,
+    [MOD_SHOP]=TICShop,
+}
+
+init()
+function TIC()
+    if OLD_MODE ~= MODE then
+        if INITS[MODE] ~= nil then
+            INITS[MODE]()
+        end
+        OLD_MODE=MODE
+    end
+    TIC_MODE[MODE]()
 end

@@ -62,7 +62,7 @@ function deepcopy(orig)
     if orig_type == 'table' then
         copy = {}
         for orig_key, orig_value in next, orig, nil do
-        copy[deepcopy(orig_key)] = deepcopy(orig_value)
+            copy[deepcopy(orig_key)] = deepcopy(orig_value)
         end
         setmetatable(copy, deepcopy(getmetatable(orig)))
     else
@@ -678,34 +678,72 @@ end
 
 FUEL_PRICE=1.0
 
-FUEL_TANKS={
-    [1]={value=100, name="basic", price=0},
-    [2]={value=200, name="large" , price=400},
-    [3]={value=300, name="XL", price=800}
+VALUE_INCREMENT=1.5
+
+FT_GEN={
+    names = {"Basic", "Big", "XLarge", "Ginormous", "SSET", "Baikal", "9^9*XL"},
+    increment=500,
+    round=50,
+    idx=4
 }
 
+FUEL_TANKS={
+    [1]={value=100, name=FT_GEN.names[1], price=0},
+    [2]={value=200, name=FT_GEN.names[2] , price=400},
+    [3]={value=300, name=FT_GEN.names[3], price=800}
+}
+
+BR_GEN={
+    names = {"Basic", "Fine", "Neat", "Accurate", "Precise", "Gentle", "Jewelry drill"},
+    increment=600,
+    round_f=1,
+    idx=4
+}
+BR_INCREMENT=600
+
 BURRS={
-    [1]={value=1.0, name="basic", price=0},
-    [2]={value=1.1, name="fine", price=500},
-    [3]={value=1.2, name="precise", price=1000}
+    [1]={value=1.0, name=BR_GEN.names[1], price=0},
+    [2]={value=1.1, name=BR_GEN.names[2], price=500},
+    [3]={value=1.2, name=BR_GEN.names[3], price=1000}
+}
+
+CNT_GEN={
+    names = {"Basic", "Large", "XL", "Giant", "Belaz", "Cyclopean", "Portable black hole"},
+    increment=500,
+    round=50,
+    idx=4
 }
 
 CONTAINERS={
-    [1]={value=100, name="basic", price=0},
-    [2]={value=200, name="large", price=400},
-    [3]={value=300, name="XL", price=800}
+    [1]={value=100, name=CNT_GEN.names[1], price=0},
+    [2]={value=200, name=CNT_GEN.names[2], price=400},
+    [3]={value=300, name=CNT_GEN.names[3], price=800}
+}
+
+ENGINE_GEN={
+    names={"Ant", "Termite", "Mole", "Digger", "Naked mole rat", "JackHammer", "EarthScrewer"},
+    increment=1000,
+    round_f=1,
+    idx=4
 }
 
 ENGINES={
-    [1]={value=1.0, name="basic", price=0},
-    [2]={value=2.0, name="v8", price=1000},
-    [3]={value=3.0, name="greta", price=2000}
+    [1]={value=1.0, name=ENGINE_GEN.names[1], price=0},
+    [2]={value=2.0, name=ENGINE_GEN.names[2], price=1000},
+    [3]={value=3.0, name=ENGINE_GEN.names[3], price=2000}
+}
+
+RDR_GEN={
+    names = {"Blind", "Viy", "Beagle", "Advanced", "Tracker", "X-RAY Penetrator", "God's eye"},
+    increment=1200,
+    round=16,
+    idx=4
 }
 
 RADARS={
-    [1]={value=32, name="basic", price=0},
-    [2]={value=48, name="X-RAY penetrator", price=200},
-    [3]={value=64, name="God's eye", price=800}
+    [1]={value=32, name=RDR_GEN.names[1], price=0},
+    [2]={value=48, name=RDR_GEN.names[2], price=1000},
+    [3]={value=64, name=RDR_GEN.names[3], price=2200}
 }
 
 PLAYER={
@@ -790,6 +828,11 @@ WALL_LEFT       = WALL_LEFT_T * T
 WALL_RIGHT_T    = W - 4
 WALL_RIGHT      = WALL_RIGHT_T * T
 
+DEBUG_SPAWN_X = W//2
+DEBUG_SPAWN_Y = H-8
+DEBUG_SPAWN_W = 8
+DEBUG_SPAWN_H = 6
+
 function generateMap(startY,endY)
     startY = startY or 0
     endY = endY or MAP_H-1
@@ -806,6 +849,14 @@ function generateMap(startY,endY)
 
             local map_tile=deepcopy(def_tile)
             map_tile.block=TILES_TO_BLOCKS[tile]
+
+            if DEBUG then
+                if x >= DEBUG_SPAWN_X and x <= DEBUG_SPAWN_X + DEBUG_SPAWN_W and y >= DEBUG_SPAWN_Y and y <= DEBUG_SPAWN_Y + DEBUG_SPAWN_H then
+                    map_tile.seen=true
+                    map_tile.dug=true
+                end
+            end
+
             if y <= GROUND_HEIGT_T and x >= WALL_LEFT_T and x <= WALL_RIGHT_T then
                 map_tile.seen=true
                 map_tile.dug=true
@@ -822,8 +873,13 @@ end
 
 function init()
     generateMap()
-    PLAYER.pos.x=(W*T)//2
-    PLAYER.pos.y=H//2
+    if DEBUG then
+        PLAYER.pos.x=DEBUG_SPAWN_X*T
+        PLAYER.pos.y=DEBUG_SPAWN_Y*T
+    else
+        PLAYER.pos.x=(W*T)//2
+        PLAYER.pos.y=H//2
+    end
     PLAYER.money=500
     PLAYER.fuel_tank=FUEL_TANKS[1]
     PLAYER.fuel=FUEL_TANKS[1].value
@@ -837,7 +893,9 @@ function init()
     PREV_MODE=nil
     if debug then
         PLAYER.engine=ENGINES[3]
+        PLAYER.burr=BURRS[2]
         PLAYER.fuel=10000
+        PLAYER.money=10000
     end
 end
 
@@ -926,7 +984,7 @@ function can_buy(pl, item, to_replace, items_container)
     if item ~= pl[to_replace] then
         if table.index(items_container, item) > table.index(items_container, pl[to_replace]) then
             if pl.money >= item.price then
-                return true, sf("$%d", item.price)
+                return true, sf("$%.0f", item.price)
             else
                 return false, NOT_ENOUGH
             end
@@ -1038,9 +1096,81 @@ function finishShop()
     PLAYER.pos.y=H//2
 end
 
+function generateUpgrade(last, generator)
+    local new_val = deepcopy(last)
+    local fix_idx = generator.idx % #generator.names
+    if fix_idx == 0 then
+        fix_idx = #generator.names
+    end
+
+    local new_name = generator.names[fix_idx]
+    local lvl = (generator.idx - 1) // #generator.names
+    if lvl > 0 then
+        new_name = sf("%s V%d", new_name, lvl+1)
+    end
+    generator.idx = generator.idx + 1
+    new_val.name=new_name
+
+    local new_price = last.price + generator.increment
+    generator.increment = generator.increment * 1.1
+    new_val.price = new_price
+
+    local new_value = last.value * VALUE_INCREMENT
+    if generator.round ~= nil then
+        new_value = (new_value // generator.round) * generator.round
+    elseif generator.round_f ~= nil then
+        new_value = math.floor(math.pow(10,generator.round_f) * new_value) / math.pow(10,generator.round_f)
+    end
+    new_val.value=new_value
+    return new_val
+end
+
+function shiftUpgrade(field, container, generator)
+    local idx = table.index(container, PLAYER[field])
+    local slots = #container
+    local to_shift = idx-1
+    if to_shift == 0 then return end
+
+    if DEBUG then
+        trace(sf("shift %s to %d", field, to_shift))
+    end
+
+    local start=1
+    for i=idx,slots do
+        trace(sf("Move %s -> %s from %d to %d", container[i].name, container[start].name, i, start))
+        container[start] = container[i]
+        start=start+1
+    end
+
+    for i=start,slots do
+        trace(sf("Generate at %d", i))
+        local old_name = container[i].name
+        container[i] = generateUpgrade(container[i-1], generator)
+        trace(sf("Generated %s -> %s", old_name, container[i].name))
+    end
+
+    PLAYER[field] = container[1]
+end
+
+-- burr=BURRS[1],
+-- container=CONTAINERS[1],
+-- engine=ENGINES[1],
+-- fuel_tank=FUEL_TANKS[1],
+-- radar=RADARS[1],
+function incrementLevel()
+    shiftUpgrade("burr", BURRS, BR_GEN)
+    shiftUpgrade("container", CONTAINERS, CNT_GEN)
+    shiftUpgrade("engine", ENGINES, ENGINE_GEN)
+    shiftUpgrade("fuel_tank", FUEL_TANKS, FT_GEN)
+    shiftUpgrade("radar", RADARS, RDR_GEN)
+end
+
 MAP_GEN_Y=0
+LVL=0
 function initNextMap()
     MAP_GEN_Y=0
+    LVL=LVL+1
+    incrementLevel()
 end
 
 function TICNextMap()

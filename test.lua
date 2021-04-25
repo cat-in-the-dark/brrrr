@@ -382,9 +382,7 @@ function aabb(point, x, y, w, h)
     return x < point.x and point.x < x + w and y < point.y and point.y < y + h
 end
 
-function intersect_circle_aabb(c, x, y, w, h, inner, outer)
-    if inner == nil then inner = math.min(w, h) / 2 end
-    if outer == nil then outer = math.sqrt(sq(w/2)+sq(h/2)) end
+function intersect_circle_aabb(c, x, y, w, h)
     local aabbC = v2(x+w/2, y+h/2)
     local dist = v2dist(c, aabbC)
     local angle = math.atan2(aabbC.y-c.y, aabbC.x-c.x)
@@ -517,6 +515,15 @@ function sell_resources(pl)
     pl.container_items = {}
 end
 
+function check_shop(shop, pl)
+    local x,y = shop.pos.x + shop.cr.x, shop.pos.y + shop.cr.y
+    -- trace(sf("%f %f %f %f", x, y, shop.cr.w, shop.cr.h))
+    local c = {x=pl.pos.x + pl.cc.x, y=pl.pos.y + pl.cc.y, r=pl.cc.r}
+    -- trace(sf("%f %f %f", c.x, c.y, c.r))
+    res,_,_,_,_ = intersect_circle_aabb(c, x, y, shop.cr.w, shop.cr.h)
+    if res then MODE = MOD_SHOP end
+end
+
 function move_player(pl)
     local dx,dy,rot,speed=0,0,0,1
     if btn(UP) then dy=-speed end
@@ -620,8 +627,19 @@ function drawSky(cam)
     rect(0, 0, W, sky_height, 10)
 end
 
+SHOP={
+    pos=v2((W*T)//2-80,48),
+    sp=make_tex(336,6,4),
+    cr={x=0,y=6,w=48,h=26}
+}
+
+function drawShop(cam)
+    draw_ent(SHOP,cam)
+end
+
 function draw(cam, pl)
     drawSky(cam)
+    drawShop(cam)
     drawMap(cam)
     for i,v in ipairs(ENTITIES) do
         draw_ent(v,cam)
@@ -667,7 +685,7 @@ PLAYER={
     pos={x=0,y=0,w=32,h=16},
     center=v2(8, 8),
     cc={x=8,y=8,r=8},
-    burr_poly={v2(16,0), v2(32,8), v2(16,16)},
+    burr_poly={v2(16,1), v2(32,8), v2(16,15)},
     burr=BURRS[1],
     container=CONTAINERS[1],
     container_items={},
@@ -778,7 +796,7 @@ end
 
 function init()
     generateMap()
-    PLAYER.pos.x=W*T-50
+    PLAYER.pos.x=(W*T)//2
     PLAYER.pos.y=H//2
     PLAYER.money=0
     PLAYER.fuel_tank=FUEL_TANKS[1]
@@ -790,6 +808,11 @@ function init()
     PLAYER.radar=RADARS[1]
     MODE=MOD_GAME
     OLD_MODE=nil
+end
+
+function initGame()
+    PLAYER.pos.x=(W*T)//2
+    PLAYER.pos.y=H//2
 end
 
 function TICGame()
@@ -813,7 +836,7 @@ function TICGame()
     move_player(PLAYER)
     -- animation
     -- gameTicks=gameTicks+1
-    if keyp(KEY_Q) then MODE=MOD_SHOP end
+    check_shop(SHOP, PLAYER)
 end
 
 function text_width(text, small)
@@ -954,7 +977,8 @@ TIC_MODE={
 }
 
 INITS={
-    [MOD_SHOP]=initShop
+    [MOD_SHOP]=initShop,
+    [MOD_GAME]=initGame
 }
 
 init()

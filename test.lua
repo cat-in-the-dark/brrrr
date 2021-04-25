@@ -519,6 +519,14 @@ function move_player(pl)
     dx=speed * cos(rot)
     dy=speed * sin(rot)
 
+    -- map discovery
+    collide_tile_cicrle({x=pl.pos.x + pl.center.x, y=pl.pos.y + pl.center.y, r=pl.radar.value}, function(x, y, dist, angle, xn, yn)
+        if not MAP[y][x].seen then
+            MAP[y][x].seen=true
+        end
+    end)
+
+    -- collision
     local hit=false
     repeat
         hit = false
@@ -626,6 +634,12 @@ ENGINES={
     [3]={value=3.0, name="greta", price=2000}
 }
 
+RADARS={
+    [1]={value=32, name="basic", price=0},
+    [2]={value=48, name="X-RAY penetrator", price=200},
+    [3]={value=64, name="God's eye", price=800}
+}
+
 PLAYER={
     pos={x=0,y=0,w=32,h=16},
     center=v2(8, 8),
@@ -637,6 +651,7 @@ PLAYER={
     engine=ENGINES[1],
     fuel_tank=FUEL_TANKS[1],
     fuel=FUEL_TANKS[1].value,
+    radar=RADARS[1],
     money=0,
     rot=0,
     st=ST.IDLE,
@@ -672,10 +687,10 @@ end
 function drawMap( cam )
     local cx,cy = cam.x // T, cam.y // T
     local offx, offy = cx * T - cam.x, cy * T - cam.y
-    map(cx,cy,30,17,offx,offy,-1,1,function(tile,x,y)
+    map(cx,cy,31,18,offx,offy,-1,1,function(tile,x,y)
         local outTile,flip,rotate=tile,0,0
         if MAP[y][x].dug then
-            outTile = 0
+            outTile = 20
         end
         if MAP[y][x].debug then
             outTile = 17
@@ -685,6 +700,16 @@ function drawMap( cam )
         -- 	outTile=outTile+math.floor(gameTicks*speed)%frames
         -- end
         return outTile,flip,rotate --or simply `return outTile`.
+    end)
+
+    map(cx,cy,32,19,offx-2,offy-2,8,1,function(tile,x,y)
+        local outTile,flip,rotate=tile,0,0
+        if MAP[y][x].seen then
+            outTile = 19 -- transparent
+        else
+            outTile = 18
+        end
+        return outTile
     end)
 end
 
@@ -725,6 +750,7 @@ function init()
     PLAYER.container_items={}
     PLAYER.burr=BURRS[1]
     PLAYER.engine=ENGINES[1]
+    PLAYER.radar=RADARS[1]
     MODE=MOD_GAME
     OLD_MODE=nil
 end
@@ -817,7 +843,7 @@ end
 
 function initShopButtons(pl)
     SHOP_BUTTONS={}
-    local startX, startY = 10, 20
+    local startX, startY = 10, 8
     trace(#ENGINES)
     for i,v in ipairs(ENGINES) do
         local offX = (i-1) * 24
@@ -844,6 +870,13 @@ function initShopButtons(pl)
         local offX = (i-1) * 24
         local btn = make_upgrade_button(startX + offX, startY + 72, v, pl.container, "Volume", "%d", function(item)
             buy_item(pl, item, "container", CONTAINERS)
+        end)
+        table.insert(SHOP_BUTTONS, btn)
+    end
+    for i,v in ipairs(RADARS) do
+        local offX = (i-1) * 24
+        local btn = make_upgrade_button(startX + offX, startY + 96, v, pl.radar, "Distance", "%d m", function(item)
+            buy_item(pl, item, "radar", RADARS)
         end)
         table.insert(SHOP_BUTTONS, btn)
     end

@@ -17,6 +17,7 @@ RIGHT=3
 BTN_Z=4
 BTN_X=5
 KEY_SPACE=48
+KEY_F = 06
 KEY_S = 19
 
 pi=math.pi
@@ -297,8 +298,20 @@ function burr(pl)
     res = move_poly(res, pl.pos)
     collide_tile_poly(res, function(x, y)
         if not MAP[y][x].dug then
+            if pl.fuel <= 0 then
+                trace("no fuel!")
+                return
+            end
+
             local tile = mget(x, y)
+            -- dig tile
             MAP[y][x].wear = MAP[y][x].wear - pl.power / TILES_TO_BLOCKS[tile].hardness
+
+            -- drain fuel
+
+            pl.fuel = pl.fuel - pl.power / 10
+            if pl.fuel < 0 then pl.fuel = 0 end
+
             if MAP[y][x].wear <= 0 then
                 MAP[y][x].dug = true
                 local blk = MAP[y][x].block
@@ -313,6 +326,17 @@ function burr(pl)
             end
         end
     end)
+end
+
+function refuel(pl)
+    local cap = pl.fuel_tank.capacity - pl.fuel
+    trace(cap)
+    local cost = min(cap * FUEL_PRICE, pl.money)
+    trace(cost)
+    local amount = cost / FUEL_PRICE
+    trace(amount)
+    pl.fuel = pl.fuel + amount
+    pl.money = pl.money - cost
 end
 
 function sell_resources(pl)
@@ -388,11 +412,11 @@ function draw_ent(e, cam)
 end
 
 function drawHud( pl )
-    local str = sf("$%d", pl.money)
+    local str = sf("$%.0f", pl.money)
     local w = print(str, W, H)
     print(str, W-w, H-8, 12)
 
-    str = sf("%d/%d", remaining_capacity(pl.container), pl.container.capacity)
+    str = sf("fuel: %.1f/%.1f, cargo: %.0f/%.0f", pl.fuel, pl.fuel_tank.capacity, remaining_capacity(pl.container), pl.container.capacity)
     w = print(str, W, H)
     print(str, W-w, H-16, 12)
 end
@@ -405,12 +429,24 @@ function draw(cam, pl)
     drawHud(pl)
 end
 
+-- balance
+
+FUEL_PRICE=1.0
+
+FUEL_TANKS={
+    DEFAULT={capacity=100},
+    LARGE={capacity=200},
+    XL={capacity=300}
+}
+
 PLAYER={
     pos={x=0,y=0,w=32,h=16},
     center=v2(8, 8),
     cc={x=8,y=8,r=8},
     burr_poly={v2(16,0), v2(32,8), v2(16,16)},
     container={capacity=100, items={}},
+    fuel_tank=FUEL_TANKS.DEFAULT,
+    fuel=FUEL_TANKS.DEFAULT.capacity,
     power=1.0,
     money=0,
     rot=0,
@@ -494,6 +530,8 @@ function init()
     PLAYER.pos.x=W//2
     PLAYER.pos.y=H//2
     PLAYER.money=0
+    PLAYER.fuel_tank=FUEL_TANKS.DEFAULT
+    PLAYER.fuel=FUEL_TANKS.DEFAULT.capacity
 end
 
 init()
@@ -510,6 +548,9 @@ function TIC()
     if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
     if keyp(KEY_S) then
         sell_resources(PLAYER)
+    end
+    if keyp(KEY_F) then
+        refuel(PLAYER)
     end
     burr(PLAYER)
     move_player(PLAYER)

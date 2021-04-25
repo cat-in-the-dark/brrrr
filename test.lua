@@ -98,11 +98,9 @@ Button={
 
 
 function g_press( btn )
-    btn.color = 6
 end
 
 function g_release( btn )
-    btn.color = 7
 end
 
 function g_hover( btn )
@@ -164,8 +162,13 @@ function check_button( btn, mx, my, md )
         safe1(btn.on_press, btn)
     end
 end
-  
-function draw_text_btn( btn,text )
+
+function draw_button( btn )
+    if btn.on_draw ~= nil then
+        btn.on_draw(btn)
+        return
+    end
+
     rect(btn.x, btn.y, btn.w, btn.h, btn.color)
     rectb(btn.x, btn.y, btn.w, btn.h, 2)
     local dx,dy=0,0
@@ -175,22 +178,13 @@ function draw_text_btn( btn,text )
     else
         rectb(btn.x, btn.y, btn.w - 1, btn.h - 1, 2)
     end
-    local tw,th = print(text, W,H),8
-    printframe(text, btn.x + btn.w/2 - tw/2 + dx, btn.y + btn.h/2 - th/2 + dy, 6)
-end
 
-function draw_button( btn )
-    if btn.on_draw ~= nil then
-        btn.on_draw(btn)
-        return
-    end
     if btn.text ~= nil then
-        draw_text_btn(btn, btn.text)
+        local tw,th = print(text, W,H),8
+        printframe(text, btn.x + btn.w/2 - tw/2 + dx, btn.y + btn.h/2 - th/2 + dy, 6)
         return
     end
-    rect(btn.x, btn.y, btn.w, btn.h, btn.color)
-    rectb(btn.x, btn.y, btn.w, btn.h, 2)
-    rectb(btn.x + 1, btn.y + 1, btn.w - 1, btn.h - 1, 2)
+
     if btn.item ~= nil then
         local item,x,y,w,h = btn.item,btn.x,btn.y,btn.w,btn.h
         local ent = {pos={x=x, y=y}, sp=item.sp, offx=btn.offx, offy=btn.offy}
@@ -844,58 +838,64 @@ function text_width(text, small)
 end
 
 function on_upgrade_hover(btn)
-    if btn.item ~= nil and btn.active_callback ~= nil and btn.active_callback(btn.item) then
-        g_hover(btn)
-        local mx,my = mouse()
-        local dx,dy = 5, 5
-        local value = sf(btn.format, btn.item.value)
-        local text=sf("%s\n%s: %s\n$%d", btn.item.name, btn.target_spec, value, btn.item.price)
-        local width = text_width(text,true)
-        text=sf("%s\n%s: %s\n", btn.item.name, btn.target_spec, value)
-        local x,y,w,h=math.min(W-width, mx + dx), my+dy, width+6, 24
-        rect(x-4,y-4,w,h,8)
-        rectb(x-3,y-3,w,h,2)
-        printframe(text,x,y,15,0,true)
-        -- price
-        text=sf("$%d", btn.item.price)
-        local w1=text_width(text,true)
-        printframe(text, x+width-w1, y+13,6,0,true)
-    end
+    local res, msg = can_buy(btn.pl, btn.item, btn.target_item, btn.container)
+    if res then btn.color = 5 else btn.color = 14 end
+    local mx,my = mouse()
+    local dx,dy = 5, 5
+    local value = sf(btn.format, btn.item.value)
+    local text=sf("%s\n%s: %s\n%s", btn.item.name, btn.target_spec, value, msg)
+    local width = text_width(text,true)
+    text=sf("%s\n%s: %s\n", btn.item.name, btn.target_spec, value)
+    local x,y,w,h=math.min(W-width, mx + dx), my+dy, width+6, 24
+    rect(x-4,y-4,w,h,8)
+    rectb(x-3,y-3,w,h,2)
+    printframe(text,x,y,15,0,true)
+    -- price
+    text=msg
+    local w1=text_width(text,true)
+    local text_clr = 6
+    if not res then text_clr = 3 end
+    printframe(text, x+width-w1, y+13,text_clr,0,true)
 end
 
 function on_upgrade_click(btn)
-    if btn.item ~= nil and btn.upgrade_callback ~= nil then
-        g_press(btn)
-        btn.upgrade_callback(btn.item)
+    g_press(btn)
+    local res, msg = can_buy(btn.pl, btn.item, btn.target_item, btn.container)
+    if res then
+        buy_item(btn.pl, btn.item, btn.target_item, btn.container)
+        initShopButtons(btn.pl)
     end
 end
 
 -- function make_button( x, y, w, h, color, item, text, on_hover, on_leave, on_press, on_release, on_enter, sp, offx, offy, on_draw )
-function make_upgrade_button(x, y, upgrade, target_item, target_spec, format, upgrade_callback, active_callback)
-    local btn = make_button(x, y, 16, 16, 1, upgrade, nil, on_upgrade_hover, g_leave, g_press, on_upgrade_click, nil, nil, 2, 2)
+function make_upgrade_button(x, y, upgrade, pl, target_item, target_spec, format, container)
+    local res,_ = can_buy(pl, upgrade, target_item, container)
+    local color = 15
+    if res then color=6 end
+    local btn = make_button(x, y, 16, 16, color, upgrade, nil, on_upgrade_hover, g_leave, g_press, on_upgrade_click, nil, nil, 2, 2)
+    btn.pl = pl
     btn.target_item = target_item
     btn.target_spec = target_spec
     btn.format = format
-    btn.upgrade_callback = upgrade_callback
-    btn.active_callback = active_callback
+    btn.container = container
     return btn
 end
 
 SHOP_BUTTONS={}
 
 function can_buy(pl, item, to_replace, items_container)
-    if pl.money >= item.price then
-        if item ~= pl[to_replace] then
-            if table.index(items_container, item) > table.index(items_container, pl[to_replace]) then
-                return true
-            -- else
-                -- trace("can't downgrade")
+    if item ~= pl[to_replace] then
+        if table.index(items_container, item) > table.index(items_container, pl[to_replace]) then
+            if pl.money >= item.price then
+                return true, sf("$%d", item.price)
+            else
+                return false, "Not enough money"
             end
-        -- else
-            -- trace("can't buy same item")
+        else
+            return false, "Better equipped"
         end
-    -- else
-        -- trace("not enough money")
+    else
+        return false, "Already equipped"
     end
     return false
 end
@@ -908,53 +908,34 @@ function buy_item(pl, item, to_replace, items_container)
     end
 end
 
+-- function make_upgrade_button(x, y, upgrade, pl, target_item, target_spec, format, container)
 function initShopButtons(pl)
     SHOP_BUTTONS={}
     local startX, startY = 10, 8
     trace(#ENGINES)
     for i,v in ipairs(ENGINES) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY, v, pl.engine, "Power", "%.1fx", function(item)
-            buy_item(pl, item, "engine", ENGINES)
-        end, function(item)
-            return can_buy(pl, item, "engine", ENGINES)
-        end)
+        local btn = make_upgrade_button(startX + offX, startY, v, pl, "engine", "Power", "%.1fx", ENGINES)
         table.insert(SHOP_BUTTONS, btn)
     end
     for i,v in ipairs(BURRS) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY + 24, v, pl.burr, "Recovery", "x%.1f", function(item)
-            buy_item(pl, item, "burr", BURRS)
-        end, function(item)
-            return can_buy(pl, item, "burr", BURRS)
-        end)
+        local btn = make_upgrade_button(startX + offX, startY + 24, v, pl, "burr", "Recovery", "x%.1f", BURRS)
         table.insert(SHOP_BUTTONS, btn)
     end
     for i,v in ipairs(FUEL_TANKS) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY + 48, v, pl.fuel_tank, "Volume", "%d", function(item)
-            buy_item(pl, item, "fuel_tank", FUEL_TANKS)
-        end, function(item)
-            return can_buy(pl, item, "fuel_tank", FUEL_TANKS)
-        end)
+        local btn = make_upgrade_button(startX + offX, startY + 48, v, pl, "fuel_tank", "Volume", "%d", FUEL_TANKS)
         table.insert(SHOP_BUTTONS, btn)
     end
     for i,v in ipairs(CONTAINERS) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY + 72, v, pl.container, "Volume", "%d", function(item)
-            buy_item(pl, item, "container", CONTAINERS)
-        end, function(item)
-            return can_buy(pl, item, "container", CONTAINERS)
-        end)
+        local btn = make_upgrade_button(startX + offX, startY + 72, v, pl, "container", "Volume", "%d", CONTAINERS)
         table.insert(SHOP_BUTTONS, btn)
     end
     for i,v in ipairs(RADARS) do
         local offX = (i-1) * 24
-        local btn = make_upgrade_button(startX + offX, startY + 96, v, pl.radar, "Distance", "%d m", function(item)
-            buy_item(pl, item, "radar", RADARS)
-        end, function(item)
-            return can_buy(pl, item, "radar", RADARS)
-        end)
+        local btn = make_upgrade_button(startX + offX, startY + 96, v, pl, "radar", "Distance", "%d m", RADARS)
         table.insert(SHOP_BUTTONS, btn)
     end
 end

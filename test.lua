@@ -539,7 +539,7 @@ function move_player(pl)
 
     -- map discovery
     collide_tile_cicrle({x=pl.pos.x + pl.center.x, y=pl.pos.y + pl.center.y, r=pl.radar.value}, function(x, y, dist, angle, xn, yn)
-        if not MAP[y][x].seen then
+        if MAP[y] ~= nil and MAP[y][x] ~= nil and not MAP[y][x].seen then
             MAP[y][x].seen=true
         end
     end)
@@ -798,7 +798,7 @@ function init()
     generateMap()
     PLAYER.pos.x=(W*T)//2
     PLAYER.pos.y=H//2
-    PLAYER.money=0
+    PLAYER.money=500
     PLAYER.fuel_tank=FUEL_TANKS[1]
     PLAYER.fuel=FUEL_TANKS[1].value
     PLAYER.container=CONTAINERS[1]
@@ -844,7 +844,7 @@ function text_width(text, small)
 end
 
 function on_upgrade_hover(btn)
-    if btn.item ~= nil and btn.target_item ~= nil and btn.item ~= btn.target_item then
+    if btn.item ~= nil and btn.active_callback ~= nil and btn.active_callback(btn.item) then
         g_hover(btn)
         local mx,my = mouse()
         local dx,dy = 5, 5
@@ -865,39 +865,46 @@ end
 
 function on_upgrade_click(btn)
     if btn.item ~= nil and btn.upgrade_callback ~= nil then
+        g_press(btn)
         btn.upgrade_callback(btn.item)
     end
 end
 
 -- function make_button( x, y, w, h, color, item, text, on_hover, on_leave, on_press, on_release, on_enter, sp, offx, offy, on_draw )
-function make_upgrade_button(x, y, upgrade, target_item, target_spec, format, callback)
-    local btn = make_button(x, y, 16, 16, 2, upgrade, nil, on_upgrade_hover, g_leave, g_press, on_upgrade_click, nil, nil, 2, 2)
+function make_upgrade_button(x, y, upgrade, target_item, target_spec, format, upgrade_callback, active_callback)
+    local btn = make_button(x, y, 16, 16, 1, upgrade, nil, on_upgrade_hover, g_leave, g_press, on_upgrade_click, nil, nil, 2, 2)
     btn.target_item = target_item
     btn.target_spec = target_spec
     btn.format = format
-    btn.upgrade_callback = callback
+    btn.upgrade_callback = upgrade_callback
+    btn.active_callback = active_callback
     return btn
 end
 
 SHOP_BUTTONS={}
 
-function buy_item(pl, item, to_replace, items_container)
+function can_buy(pl, item, to_replace, items_container)
     if pl.money >= item.price then
-        trace(to_replace)
-        trace(pl[to_replace])
-        trace(pl[to_replace].name)
         if item ~= pl[to_replace] then
             if table.index(items_container, item) > table.index(items_container, pl[to_replace]) then
-                pl.money = pl.money - item.price
-                pl[to_replace] = item
-            else
-                trace("can't downgrade")
+                return true
+            -- else
+                -- trace("can't downgrade")
             end
-        else
-            trace("can't buy same item")
+        -- else
+            -- trace("can't buy same item")
         end
-    else
-        trace("not enough money")
+    -- else
+        -- trace("not enough money")
+    end
+    return false
+end
+
+function buy_item(pl, item, to_replace, items_container)
+    if can_buy(pl, item, to_replace, items_container) then
+        trace("here")
+        pl.money = pl.money - item.price
+        pl[to_replace] = item
     end
 end
 
@@ -909,6 +916,8 @@ function initShopButtons(pl)
         local offX = (i-1) * 24
         local btn = make_upgrade_button(startX + offX, startY, v, pl.engine, "Power", "%.1fx", function(item)
             buy_item(pl, item, "engine", ENGINES)
+        end, function(item)
+            return can_buy(pl, item, "engine", ENGINES)
         end)
         table.insert(SHOP_BUTTONS, btn)
     end
@@ -916,6 +925,8 @@ function initShopButtons(pl)
         local offX = (i-1) * 24
         local btn = make_upgrade_button(startX + offX, startY + 24, v, pl.burr, "Recovery", "x%.1f", function(item)
             buy_item(pl, item, "burr", BURRS)
+        end, function(item)
+            return can_buy(pl, item, "burr", BURRS)
         end)
         table.insert(SHOP_BUTTONS, btn)
     end
@@ -923,6 +934,8 @@ function initShopButtons(pl)
         local offX = (i-1) * 24
         local btn = make_upgrade_button(startX + offX, startY + 48, v, pl.fuel_tank, "Volume", "%d", function(item)
             buy_item(pl, item, "fuel_tank", FUEL_TANKS)
+        end, function(item)
+            return can_buy(pl, item, "fuel_tank", FUEL_TANKS)
         end)
         table.insert(SHOP_BUTTONS, btn)
     end
@@ -930,6 +943,8 @@ function initShopButtons(pl)
         local offX = (i-1) * 24
         local btn = make_upgrade_button(startX + offX, startY + 72, v, pl.container, "Volume", "%d", function(item)
             buy_item(pl, item, "container", CONTAINERS)
+        end, function(item)
+            return can_buy(pl, item, "container", CONTAINERS)
         end)
         table.insert(SHOP_BUTTONS, btn)
     end
@@ -937,6 +952,8 @@ function initShopButtons(pl)
         local offX = (i-1) * 24
         local btn = make_upgrade_button(startX + offX, startY + 96, v, pl.radar, "Distance", "%d m", function(item)
             buy_item(pl, item, "radar", RADARS)
+        end, function(item)
+            return can_buy(pl, item, "radar", RADARS)
         end)
         table.insert(SHOP_BUTTONS, btn)
     end

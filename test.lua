@@ -831,20 +831,11 @@ function init()
     PLAYER.radar=RADARS[1]
     MODE=MOD_GAME
     OLD_MODE=nil
+    PREV_MODE=nil
     if debug then
         PLAYER.engine=ENGINES[3]
         PLAYER.fuel=10000
     end
-end
-
-SKIP_INIT_GAME = false
-function initGame()
-    if SKIP_INIT_GAME then
-        SKIP_INIT_GAME = false
-        return
-    end
-    PLAYER.pos.x=(W*T)//2
-    PLAYER.pos.y=H//2
 end
 
 function TICGame()
@@ -982,7 +973,7 @@ function initShopButtons(pl)
 end
 
 function on_quit_press(btn)
-    MODE=MOD_GAME
+    MODE=PREV_MODE
 end
 
 function on_sell_press(btn)
@@ -1036,10 +1027,14 @@ function TICShop()
     -- if keyp(KEY_Q) then MODE=MOD_GAME end
 end
 
+function finishShop()
+    PLAYER.pos.x=(W*T)//2
+    PLAYER.pos.y=H//2
+end
+
 MAP_GEN_Y=0
 function initNextMap()
     MAP_GEN_Y=0
-    -- MAP={}
 end
 
 function TICNextMap()
@@ -1048,7 +1043,6 @@ function TICNextMap()
     TICGame()
     MAP_GEN_Y = MAP_GEN_Y + increment
     if MAP_GEN_Y > H-1 then
-        SKIP_INIT_GAME = true
         MODE=MOD_GAME
     end
 end
@@ -1067,16 +1061,32 @@ TIC_MODE={
 
 INITS={
     [MOD_SHOP]=initShop,
-    [MOD_GAME]=initGame,
     [MOD_NEXT_MAP]=initNextMap
+}
+
+FINISHES={
+    [MOD_SHOP]=finishShop
 }
 
 init()
 function TIC()
     if OLD_MODE ~= MODE then
+        if FINISHES[OLD_MODE] ~= nil then
+            FINISHES[OLD_MODE]()
+        end
+
         if INITS[MODE] ~= nil then
             INITS[MODE]()
         end
+
+        if DEBUG then
+            if OLD_MODE == nil then
+                trace(sf("[nil] -> %d", MODE))
+            else
+                trace(sf("%d -> %d", OLD_MODE, MODE))
+            end
+        end
+        PREV_MODE=OLD_MODE
         OLD_MODE=MODE
     end
     TIC_MODE[MODE]()

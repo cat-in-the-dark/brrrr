@@ -1,7 +1,7 @@
 -- title:  Remap demo
 -- author: AnastasiaDunbar, Lua translation by StinkerB06
 
-DEBUG=true
+DEBUG=false
 
 W=240
 H=136
@@ -580,7 +580,6 @@ function world_bounds(pl)
     end
     if pl.pos.y > H * T then  -- fall back on land
         pl.pos.y = 0
-        trace("OELUTZ!")
         MODE=MOD_NEXT_MAP
     end
 end
@@ -954,7 +953,7 @@ function putCluster(tile, size, x, y)
     x = x or rnd(WALL_LEFT_T, WALL_RIGHT_T-1)
     y = y or rnd(GROUND_HEIGT_T, MAP_H-1)
     for i=1,size do
-        if MAP[y] ~= nil and MAP[y][x] ~= nil and not MAP[y][x].dug then
+        if MAP[y] ~= nil and MAP[y][x] ~= nil and not MAP[y][x].dug and MAP[y][x].block ~= BLOCKS[OBSIDIAN] then
             local map_tile=deepcopy(def_tile)
             map_tile.block=BLOCKS[tile]
             map_tile.seen=MAP[y][x].seen
@@ -986,10 +985,7 @@ function init()
     end
 
     generateMap()
-    trace("Add resources")
-    trace(#RESOURCES)
     for i,res in ipairs(RESOURCES) do
-        trace(sf("Add %s %d", res.name, res.mass))
         for j=1,res.clusters do
             putCluster(res.parent, res.cluster_len)
         end
@@ -1014,7 +1010,7 @@ function init()
     MODE=MOD_GAME
     OLD_MODE=nil
     PREV_MODE=nil
-    if debug then
+    if DEBUG then
         PLAYER.engine=ENGINES[3]
     --     PLAYER.burr=BURRS[2]
         PLAYER.fuel=10000
@@ -1094,6 +1090,7 @@ function on_upgrade_click(btn)
     local res, msg = can_buy(btn.pl, btn.item, btn.target_item, btn.container)
     if res then
         buy_item(btn.pl, btn.item, btn.target_item, btn.container)
+        initUiButtons(btn.pl)
         initShopButtons(btn.pl)
     end
 end
@@ -1363,16 +1360,13 @@ function shiftUpgrade(field, container, generator)
 
     local start=1
     for i=idx,slots do
-        trace(sf("Move %s -> %s from %d to %d", container[i].name, container[start].name, i, start))
         container[start] = container[i]
         start=start+1
     end
 
     for i=start,slots do
-        trace(sf("Generate at %d", i))
         local old_name = container[i].name
         container[i] = generateUpgrade(container[i-1], generator)
-        trace(sf("Generated %s -> %s", old_name, container[i].name))
     end
 
     PLAYER[field] = container[1]
@@ -1386,17 +1380,16 @@ function upgradeBlocks()
         if block.hardness ~= -1 then  -- obsidian
             local new_hardness = ((block.hardness * HARDNESS_INCREMENT // 5)) * 5
             if new_hardness == block.hardness then new_hardness = new_hardness + 1 end
-            trace(sf("new hardness %d: %d", i, new_hardness))
+            if DEBUG then trace(sf("new hardness %d: %d", i, new_hardness)) end
             block.hardness=new_hardness
             if block.resource ~= nil then
                 local new_val = ((block.resource.value * RESOURCE_VAL_INCREMENT) // 5) * 5
                 if new_val == block.resource.value then new_val = new_val + 1 end
-                trace(sf("new price: %d", new_val))
+                if DEBUG then trace(sf("new price: %d", new_val)) end
                 block.resource.value = new_val
                 local new_mass = math.floor(block.resource.mass * MASS_INCREMENT)
-                trace(sf("new mass = %d", new_mass))
                 if new_mass == block.resource.mass then new_mass = new_mass + 1 end
-                trace(sf("new mass[1] = %d", new_mass))
+                if DEBUG then trace(sf("new mass[1] = %d", new_mass)) end
                 block.resource.mass = new_mass
             end
         end
@@ -1404,17 +1397,15 @@ function upgradeBlocks()
 end
 
 function remapTextures()
-    local amp=30
+    local amp=45
+    local rdiff,gdiff,bdiff=rnd(-amp,amp),rnd(-amp,amp),rnd(-amp,amp)
     for i,clr in ipairs(CHANGING_COLORS) do
         local r = ORIG_COLORS[clr][1]
         local g = ORIG_COLORS[clr][2]
         local b = ORIG_COLORS[clr][3]
-        local diff=rnd(-amp,amp)
-        r = (r + diff + 0xFF) % 0xFF
-        diff = rnd(-amp,amp)
-        g = (g + diff + 0xFF) % 0xFF
-        diff = rnd(-amp,amp)
-        b = (b + diff + 0xFF) % 0xFF
+        r = (r + rdiff + 0xFF) % 0xFF
+        g = (g + gdiff + 0xFF) % 0xFF
+        b = (b + bdiff + 0xFF) % 0xFF
         poke(PALETTE_ADDR+(3*clr), r)
         poke(PALETTE_ADDR+(3*clr)+1, g)
         poke(PALETTE_ADDR+(3*clr)+2, b)

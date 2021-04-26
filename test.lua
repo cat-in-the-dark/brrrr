@@ -56,6 +56,38 @@ function printframe(text,x,y,c,fc,small)
     print(text,x,y,c,false,1,small)
 end
 
+function splittokens(s)
+    local res = {}
+    for w in s:gmatch("%S+") do
+        res[#res+1] = w
+    end
+    return res
+end
+
+function textwrap(text, linewidth)
+    if not linewidth then
+        linewidth = 75
+    end
+
+    local spaceleft = linewidth
+    local res = {}
+    local line = {}
+
+    for _, word in ipairs(splittokens(text)) do
+        if #word + 1 > spaceleft then
+            table.insert(res, table.concat(line, ' '))
+            line = {word}
+            spaceleft = linewidth - #word
+        else
+            table.insert(line, word)
+            spaceleft = spaceleft - (#word + 1)
+        end
+    end
+
+    table.insert(res, table.concat(line, ' '))
+    return table.concat(res, "\n")
+end
+
 function safe1( f, arg )
     if f ~= nil then f(arg) end
 end
@@ -694,8 +726,30 @@ function drawShop(cam)
     draw_ent(SHOP,cam)
 end
 
+SEEN=-1
+function drawSign(cam)
+    if SEEN ~= LVL then
+        local str=""
+        if LVL==0 then
+            str = "Move: arrow keys\n - Dig & sell resources\n - Upgrade your drill\nDrill the worlds beneath!"
+        else
+            local unders={}
+            for i=1,LVL do
+                table.insert(unders, "under")
+            end
+            local cnc = table.concat(unders, " ")
+            str = textwrap(sf("Welcome to the %sworld!", cnc), 40)
+        end
+        local w=text_width(str)
+        local x,y = W*T//2-w//2-cam.x, 28-cam.y
+        printframe(str,x,y,12)
+        if y < -50 then SEEN=LVL end
+    end
+end
+
 function draw(cam, pl)
     drawSky(cam)
+    drawSign(cam)
     drawShop(cam)
     drawMap(cam)
     for i,v in ipairs(ENTITIES) do

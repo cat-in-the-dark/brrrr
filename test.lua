@@ -735,9 +735,9 @@ FT_GEN={
 }
 
 FUEL_TANKS={
-    [1]={value=100, name=FT_GEN.names[1], price=0},
-    [2]={value=200, name=FT_GEN.names[2] , price=400},
-    [3]={value=300, name=FT_GEN.names[3], price=800}
+    [1]={value=300, name=FT_GEN.names[1], price=0},
+    [2]={value=500, name=FT_GEN.names[2] , price=400},
+    [3]={value=700, name=FT_GEN.names[3], price=800}
 }
 
 BR_GEN={
@@ -762,9 +762,9 @@ CNT_GEN={
 }
 
 CONTAINERS={
-    [1]={value=100, name=CNT_GEN.names[1], price=0},
-    [2]={value=200, name=CNT_GEN.names[2], price=400},
-    [3]={value=300, name=CNT_GEN.names[3], price=800}
+    [1]={value=300, name=CNT_GEN.names[1], price=0},
+    [2]={value=500, name=CNT_GEN.names[2], price=400},
+    [3]={value=700, name=CNT_GEN.names[3], price=800}
 }
 
 ENGINE_GEN={

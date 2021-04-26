@@ -37,7 +37,7 @@ sf=string.format
 ALREADY_EQUIPPED="Already equipped"
 NOT_ENOUGH="Not enough money"
 
-CHANGING_COLORS={0,1,2,3,8,15}
+CHANGING_COLORS={1,2,3,8,15}
 
 -- helpers
 
@@ -218,12 +218,12 @@ end
 -- minerals
 
 DIRT        = 1
-GRANITE     = 2
-COAL        = 3
-EMERALD     = 4
-OBSIDIAN    = 5
-BASALT      = 6
-HEMATITE    = 7
+GRANITE     = 17
+COAL        = 33
+EMERALD     = 49
+OBSIDIAN    = 65
+BASALT      = 81
+HEMATITE    = 97
 
 RESOURCES={
     {
@@ -844,29 +844,26 @@ end
 -- map
 
 function drawMap( cam )
+    local frames=6
+    local speed=0.1
     local cx,cy = cam.x // T, cam.y // T
     local offx, offy = cx * T - cam.x, cy * T - cam.y
     map(cx,cy,31,18,offx,offy,0,1,function(tile,x,y)
         local outTile,flip,rotate=tile,0,0
         if MAP[y][x].dug then
             outTile = 0
+        elseif MAP[y][x].block.resource ~= nil then
+        	outTile=outTile+math.floor(gameTicks*speed)%frames
         end
-        if MAP[y][x].debug then
-            outTile = 17
-        end
-        -- animation: 
-        -- if tile==yourWaterfallTile then
-        -- 	outTile=outTile+math.floor(gameTicks*speed)%frames
-        -- end
         return outTile,flip,rotate --or simply `return outTile`.
     end)
 
     map(cx,cy,32,19,offx-2,offy-2,8,1,function(tile,x,y)
         local outTile,flip,rotate=tile,0,0
         if MAP[y][x].seen then
-            outTile = 19 -- transparent
+            outTile = 16 -- transparent
         else
-            outTile = 18
+            outTile = 0 -- black
         end
         return outTile
     end)
@@ -972,6 +969,7 @@ end
 -- init
 
 function init()
+    gameTicks=0
     local sky_clr=10
     ORIG_CLR={}
     ORIG_CLR[0]=peek(PALETTE_ADDR+(3*sky_clr))
@@ -1047,7 +1045,7 @@ function TICGame()
     move_player(PLAYER)
     world_bounds(PLAYER)
     -- animation
-    -- gameTicks=gameTicks+1
+    gameTicks=gameTicks+1
     check_shop(SHOP, PLAYER)
 end
 
@@ -1194,7 +1192,7 @@ function initUiButtons(pl)
     local quit = make_button(W-32, H-12, 32, 12, 3, nil, "Quit", g_hover, g_leave, on_quit_press)
     table.insert( UI_BUTTONS,quit )
     if cargo_mass(pl) > 0 then
-        local sell_cargo = make_button(196, 15, 32, 12, 3, nil, "Sell", g_hover, g_leave, on_sell_press)
+        local sell_cargo = make_button(172, 0, 32, 12, 3, nil, "Sell", g_hover, g_leave, on_sell_press)
         table.insert( UI_BUTTONS,sell_cargo )
     end
     if pl.fuel < pl.fuel_tank.value then
@@ -1234,20 +1232,38 @@ function draw_fuel_bar(pl)
     printframe(str, offX, fy+4, 12)
 end
 
+DCB_STATE=0
 function draw_cargo_bar(pl, print_legend)
-    local w,h = 10, 115
-    local offX,offY=1,3
+    local w,h = 10, 100
+    local offX,offY=1,20
     local x,y = W-w-offX, offY
 
     local bg_clr=13
     local str="Cargo"
     local tw=text_width(str)
-    rect(x-tw-offX*3,0,W-(x-tw-offX*3),12,bg_clr)
-    rect(x-offX,0,W-(x-offX),h+offY*2,bg_clr)
-    printframe(str,x-tw-offX,offY,12)
+    rect(W-tw-offX*3, 0, tw+offX*3, 12, bg_clr)
+    rect(x-offX, 0, W-(x-offX), h+offY+2, bg_clr)
 
     local total,current = pl.container.value, cargo_mass(pl)
     if current > total then total = current end  -- consider overload
+
+    local tx_color = 12
+    if not print_legend then
+        if current >= total then
+            DCB_STATE = DCB_STATE + 1
+            if DCB_STATE < 20 then
+                tx_color=12
+            else
+                tx_color=2
+                if DCB_STATE >= 40 then
+                    DCB_STATE = 0
+                end
+            end
+        end
+    end
+
+    printframe(str,W-tw-offX,2,tx_color)
+
     local by_name = {}
     local colors={2,4,6,9}
     local c_idx=1

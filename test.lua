@@ -12,6 +12,8 @@ OUTER_R=INNER_R * math.sqrt(2)
 MAP_W=240
 MAP_H=136
 
+PALETTE_ADDR=0x03FC0
+
 UP=0
 DOWN=1
 LEFT=2
@@ -34,6 +36,8 @@ sf=string.format
 
 ALREADY_EQUIPPED="Already equipped"
 NOT_ENOUGH="Not enough money"
+
+CHANGING_COLORS={0,1,2,3,8,15}
 
 -- helpers
 
@@ -928,12 +932,12 @@ function generateMap(startY,endY)
             local map_tile=deepcopy(def_tile)
             map_tile.block=BLOCKS[tile]
 
-            -- if DEBUG then
-            --     if x >= DEBUG_SPAWN_X and x <= DEBUG_SPAWN_X + DEBUG_SPAWN_W and y >= DEBUG_SPAWN_Y and y <= DEBUG_SPAWN_Y + DEBUG_SPAWN_H then
-            --         map_tile.seen=true
-            --         map_tile.dug=true
-            --     end
-            -- end
+            if DEBUG then
+                if x >= DEBUG_SPAWN_X and x <= DEBUG_SPAWN_X + DEBUG_SPAWN_W and y >= DEBUG_SPAWN_Y and y <= DEBUG_SPAWN_Y + DEBUG_SPAWN_H then
+                    map_tile.seen=true
+                    map_tile.dug=true
+                end
+            end
 
             if y <= GROUND_HEIGT_T and x >= WALL_LEFT_T and x <= WALL_RIGHT_T then
                 map_tile.seen=true
@@ -966,6 +970,21 @@ end
 -- init
 
 function init()
+    local sky_clr=10
+    ORIG_CLR={}
+    ORIG_CLR[0]=peek(PALETTE_ADDR+(3*sky_clr))
+    ORIG_CLR[1]=peek(PALETTE_ADDR+(3*sky_clr)+1)
+    ORIG_CLR[2]=peek(PALETTE_ADDR+(3*sky_clr)+2)
+
+    ORIG_COLORS={}
+    for i,v in ipairs(CHANGING_COLORS) do
+        ORIG_COLORS[v] = {
+            peek(PALETTE_ADDR+(3*v)),
+            peek(PALETTE_ADDR+(3*v)+1),
+            peek(PALETTE_ADDR+(3*v)+2)
+        }
+    end
+
     generateMap()
     trace("Add resources")
     trace(#RESOURCES)
@@ -977,13 +996,13 @@ function init()
     end
 
     putCluster(COAL, 20, W//2, GROUND_HEIGT_T+3)
-    -- if DEBUG then
-        -- PLAYER.pos.x=DEBUG_SPAWN_X*T
-        -- PLAYER.pos.y=DEBUG_SPAWN_Y*T
-    -- else
+    if DEBUG then
+        PLAYER.pos.x=DEBUG_SPAWN_X*T
+        PLAYER.pos.y=DEBUG_SPAWN_Y*T
+    else
         PLAYER.pos.x=(W*T)//2
         PLAYER.pos.y=H//2
-    -- end
+    end
     PLAYER.money=500
     PLAYER.fuel_tank=FUEL_TANKS[1]
     PLAYER.fuel=FUEL_TANKS[1].value
@@ -995,12 +1014,12 @@ function init()
     MODE=MOD_GAME
     OLD_MODE=nil
     PREV_MODE=nil
-    -- if debug then
-    --     PLAYER.engine=ENGINES[3]
+    if debug then
+        PLAYER.engine=ENGINES[3]
     --     PLAYER.burr=BURRS[2]
-    --     PLAYER.fuel=10000
+        PLAYER.fuel=10000
     --     PLAYER.money=10000
-    -- end
+    end
 end
 
 function TICGame()
@@ -1028,6 +1047,18 @@ function TICGame()
     -- animation
     -- gameTicks=gameTicks+1
     check_shop(SHOP, PLAYER)
+end
+
+function SCNGame(line)
+    local sky_clr=10
+    local off=LVL % 3
+    local sky_height = GROUND_HEIGT - CAM.y
+    if line < sky_height then
+        local color=(0xff*line/H)
+        poke(PALETTE_ADDR+(3*sky_clr)+off, color)
+    else
+        poke(PALETTE_ADDR+(3*sky_clr)+off, ORIG_CLR[off])
+    end
 end
 
 function text_width(text, small)
@@ -1353,13 +1384,22 @@ function upgradeBlocks()
     end
 end
 
-function incrementLevel()
-    shiftUpgrade("burr", BURRS, BR_GEN)
-    shiftUpgrade("container", CONTAINERS, CNT_GEN)
-    shiftUpgrade("engine", ENGINES, ENGINE_GEN)
-    shiftUpgrade("fuel_tank", FUEL_TANKS, FT_GEN)
-    shiftUpgrade("radar", RADARS, RDR_GEN)
-    upgradeBlocks()
+function remapTextures()
+    local amp=30
+    for i,clr in ipairs(CHANGING_COLORS) do
+        local r = ORIG_COLORS[clr][1]
+        local g = ORIG_COLORS[clr][2]
+        local b = ORIG_COLORS[clr][3]
+        local diff=rnd(-amp,amp)
+        r = (r + diff + 0xFF) % 0xFF
+        diff = rnd(-amp,amp)
+        g = (g + diff + 0xFF) % 0xFF
+        diff = rnd(-amp,amp)
+        b = (b + diff + 0xFF) % 0xFF
+        poke(PALETTE_ADDR+(3*clr), r)
+        poke(PALETTE_ADDR+(3*clr)+1, g)
+        poke(PALETTE_ADDR+(3*clr)+2, b)
+    end
 end
 
 LVL=0
@@ -1368,7 +1408,15 @@ function initNextMap()
     CLUSTER_GEN=0
     RES_GEN=1
     LVL=LVL+1
-    incrementLevel()
+
+    remapTextures()
+
+    shiftUpgrade("burr", BURRS, BR_GEN)
+    shiftUpgrade("container", CONTAINERS, CNT_GEN)
+    shiftUpgrade("engine", ENGINES, ENGINE_GEN)
+    shiftUpgrade("fuel_tank", FUEL_TANKS, FT_GEN)
+    shiftUpgrade("radar", RADARS, RDR_GEN)
+    upgradeBlocks()
 end
 
 function TICNextMap()
@@ -1420,6 +1468,11 @@ FINISHES={
     [MOD_SHOP]=finishShop
 }
 
+SCNS={
+    [MOD_GAME]=SCNGame,
+    [MOD_NEXT_MAP]=SCNGame
+}
+
 init()
 function TIC()
     if OLD_MODE ~= MODE then
@@ -1442,4 +1495,10 @@ function TIC()
         OLD_MODE=MODE
     end
     TIC_MODE[MODE]()
+end
+
+function SCN(line)
+    if SCNS[MODE] ~= nil then
+        SCNS[MODE](line)
+    end
 end

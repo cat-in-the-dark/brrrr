@@ -782,15 +782,17 @@ ENGINES={
 
 RDR_GEN={
     names = {"Blind", "Viy", "Beagle", "Advanced", "Tracker", "X-RAY Penetrator", "God's eye"},
-    increment=1200,
-    round=16,
+    increment=1000,
+    round=4,
+    linear=true,
+    inc=4,
     idx=4
 }
 
 RADARS={
-    [1]={value=32, name=RDR_GEN.names[1], price=0},
-    [2]={value=48, name=RDR_GEN.names[2], price=1000},
-    [3]={value=64, name=RDR_GEN.names[3], price=2200}
+    [1]={value=24, name=RDR_GEN.names[1], price=0},
+    [2]={value=28, name=RDR_GEN.names[2], price=800},
+    [3]={value=32, name=RDR_GEN.names[3], price=1600}
 }
 
 PLAYER={
@@ -1323,6 +1325,7 @@ function generateUpgrade(last, generator)
     new_val.price = new_price
 
     local new_value = last.value * VALUE_INCREMENT
+    if last.linear then new_value = last.value + last.inc end
     if generator.round ~= nil then
         new_value = (new_value // generator.round) * generator.round
     elseif generator.round_f ~= nil then

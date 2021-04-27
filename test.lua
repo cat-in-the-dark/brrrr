@@ -843,9 +843,9 @@ RDR_GEN={
 }
 
 RADARS={
-    [1]={value=24, name=RDR_GEN.names[1], price=0},
-    [2]={value=28, name=RDR_GEN.names[2], price=800},
-    [3]={value=32, name=RDR_GEN.names[3], price=1600}
+    [1]={value=16, name=RDR_GEN.names[1], price=0},
+    [2]={value=20, name=RDR_GEN.names[2], price=800},
+    [3]={value=24, name=RDR_GEN.names[3], price=1600}
 }
 
 PLAYER={
@@ -896,11 +896,34 @@ end
 
 -- map
 
+function exposed(x,y)
+    local seen=0
+    for i=x-1,x+1 do
+        for j=y-1,y+1 do
+            if i == x and j == y then
+            else
+                if MAP[j] ~= nil and MAP[j][i] ~= nil and MAP[j][i].seen then seen=seen+1 end
+            end
+        end
+    end
+    return seen
+end
+
 function drawMap( cam )
     local frames=6
     local speed=0.1
     local cx,cy = cam.x // T, cam.y // T
     local offx, offy = cx * T - cam.x, cy * T - cam.y
+    map(cx,cy,32,19,offx+2,offy-2,8,1,function(tile,x,y)
+        local outTile,flip,rotate=tile,0,0
+        if MAP[y][x].dug then
+            outTile = 16 -- transparent
+        else
+            outTile = 0 -- black
+        end
+        return outTile
+    end)
+
     map(cx,cy,31,18,offx,offy,0,1,function(tile,x,y)
         local outTile,flip,rotate=tile,0,0
         if MAP[y][x].dug then
@@ -908,15 +931,28 @@ function drawMap( cam )
         elseif MAP[y][x].block.resource ~= nil then
         	outTile=outTile+math.floor(gameTicks*speed)%frames
         end
-        return outTile,flip,rotate --or simply `return outTile`.
+        return outTile
     end)
 
-    map(cx,cy,32,19,offx-2,offy-2,8,1,function(tile,x,y)
+    map(cx,cy,31,18,offx,offy,8,1,function(tile,x,y)
         local outTile,flip,rotate=tile,0,0
         if MAP[y][x].seen then
             outTile = 16 -- transparent
         else
-            outTile = 0 -- black
+            local exp = exposed(x,y)
+            if exp <= 0 then
+                outTile = 0 -- black
+            elseif exp <= 1 then
+                outTile=32
+            elseif exp <= 2 then
+                outTile=48
+            elseif exp <= 3 then
+                outTile=64
+            elseif exp <= 4 then
+                outTile=80
+            else 
+                outTile = 96
+            end
         end
         return outTile
     end)

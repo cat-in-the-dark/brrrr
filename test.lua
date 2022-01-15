@@ -540,8 +540,11 @@ function burr(pl)
             end
 
             if cargo_mass(pl) > pl.container.value then
+                local r = MAP[y][x].block.resource
+                if r ~= nil then
                 -- trace("Overload!")
-                return
+                    return
+                end
             end
 
             -- dig tile

@@ -281,9 +281,7 @@ RESOURCES={
         value=100,
         mass=1,
         cluster_len=20,
-        clusters=30,
-        mean=90,
-        var=45
+        clusters=30
     },
     {
         name="diamond",

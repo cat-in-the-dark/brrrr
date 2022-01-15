@@ -917,22 +917,33 @@ function drawMap( cam )
     local speed=0.1
     local cx,cy = cam.x // T, cam.y // T
     local offx, offy = cx * T - cam.x, cy * T - cam.y
-    map(cx,cy,32,19,offx+2,offy-2,8,1,function(tile,x,y)
-        local outTile,flip,rotate=tile,0,0
-        if MAP[y][x].dug then
-            outTile = 16 -- transparent
-        else
-            outTile = 0 -- black
-        end
-        return outTile
-    end)
 
-    map(cx,cy,31,18,offx,offy,0,1,function(tile,x,y)
+    map(cx,cy,31,18,offx,offy,8,1,function(tile,x,y)
         local outTile,flip,rotate=tile,0,0
-        if MAP[y][x].dug then
-            outTile = 0
-        elseif MAP[y][x].block.resource ~= nil then
-        	outTile=outTile+math.floor(gameTicks*speed)%frames
+        local mtile=MAP[y][x]
+        if mtile.dug then
+            local left = not MAP[y][x-1].dug
+            local diag_down = not MAP[y+1][x-1].dug
+            local down = not MAP[y+1][x].dug
+            if left and down and diag_down then
+                outTile = 7
+            elseif left and diag_down then
+                outTile = 8
+            elseif left and down then
+                outTile = 13
+            elseif left then
+                outTile = 9
+            elseif down and diag_down then
+                outTile = 11
+            elseif down then
+                outTile = 12
+            elseif diag_down then
+                outTile = 10
+            else
+                outTile = 16
+            end
+        elseif mtile.block.resource ~= nil then
+            outTile=outTile+math.floor(gameTicks*speed)%frames
         end
         return outTile
     end)

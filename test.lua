@@ -1480,19 +1480,20 @@ end
 -- hardness=10,
 -- resource=nil
 function upgradeBlocks()
-    for i,block in ipairs(BLOCKS) do
+    for i,block in pairs(BLOCKS) do
+        if DEBUG then trace(sf("upgrade block %d (%s)...", i, block.name)) end
         if block.hardness ~= -1 then  -- obsidian
             local new_hardness = ((block.hardness * HARDNESS_INCREMENT // 5)) * 5
-            if new_hardness == block.hardness then new_hardness = new_hardness + 1 end
+            if new_hardness <= block.hardness then new_hardness = block.hardness + 1 end
             if DEBUG then trace(sf("new hardness %d: %d", i, new_hardness)) end
             block.hardness=new_hardness
             if block.resource ~= nil then
                 local new_val = ((block.resource.value * RESOURCE_VAL_INCREMENT) // 5) * 5
-                if new_val == block.resource.value then new_val = new_val + 1 end
+                if new_val <= block.resource.value then new_val = block.resource.value + 1 end
                 if DEBUG then trace(sf("new price: %d", new_val)) end
                 block.resource.value = new_val
                 local new_mass = math.floor(block.resource.mass * MASS_INCREMENT)
-                if new_mass == block.resource.mass then new_mass = new_mass + 1 end
+                if new_mass <= block.resource.mass then new_mass = block.resource.mass + 1 end
                 if DEBUG then trace(sf("new mass[1] = %d", new_mass)) end
                 block.resource.mass = new_mass
             end

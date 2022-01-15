@@ -1131,6 +1131,9 @@ function init()
         for j=1,res.clusters do
             putClusterGauss(res.parent, res.cluster_len, res.mean, res.var)
         end
+        if DEBUG then
+            putCluster(res.parent, res.cluster_len, DEBUG_SPAWN_X + i * 10, DEBUG_SPAWN_Y)
+        end
     end
 
     putCluster(COAL, 20, W//2, GROUND_HEIGT_T+3)
@@ -1154,6 +1157,7 @@ function init()
     PREV_MODE=nil
     if DEBUG then
         PLAYER.engine=ENGINES[3]
+        PLAYER.radar=RADARS[3]
     --     PLAYER.burr=BURRS[2]
         PLAYER.fuel=10000
     --     PLAYER.money=10000

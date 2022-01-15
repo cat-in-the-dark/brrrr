@@ -256,6 +256,7 @@ EMERALD     = 49
 OBSIDIAN    = 65
 BASALT      = 81
 HEMATITE    = 97
+DIAMOND     = 113
 
 RESOURCES={
     {
@@ -283,6 +284,16 @@ RESOURCES={
         clusters=30,
         mean=90,
         var=45
+    },
+    {
+        name="diamond",
+        parent=DIAMOND,
+        value=1000,
+        mass=1,
+        cluster_len=3,
+        clusters=10,
+        mean=110,
+        var=25
     }
 }
 
@@ -319,6 +330,12 @@ BLOCKS={
         name="hematite",
         hardness=15,
         resource=RESOURCES[1],
+        prob=0.5
+    },
+    [DIAMOND]={
+        name="diamond",
+        hardness=100,
+        resource=RESOURCES[4],
         prob=0.5
     }
 }

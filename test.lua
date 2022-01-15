@@ -280,7 +280,9 @@ RESOURCES={
         value=100,
         mass=1,
         cluster_len=20,
-        clusters=30
+        clusters=30,
+        mean=90,
+        var=45
     }
 }
 
@@ -987,6 +989,11 @@ HEIGHT_MIDSOFT=50
 HEIGHT_MID=70
 HEIGHT_HARDMID=100
 
+function gaussian(mean, variance)
+    return  math.sqrt(-2 * variance * math.log(math.random())) *
+            math.cos(2 * math.pi * math.random()) + mean
+end
+
 function map_to_one( a, b, n )
     local dif,minN = abs(a-b), min(a,b)
     return (n - minN) / dif
@@ -1053,9 +1060,23 @@ function generateMap(startY,endY)
     end
 end
 
+function putClusterGauss(tile,size, y_mean, y_var)
+    local x,y
+    if y_mean ~= nil and y_var ~= min then
+        y = math.floor(gaussian(y_mean, y_var))
+        if y < GROUND_HEIGT_T then y = GROUND_HEIGT_T end
+        if y > MAP_H-1 then y = MAP_H-1 end
+    else
+        y = rnd(GROUND_HEIGT_T, MAP_H-1)
+    end
+    x = rnd(WALL_LEFT_T, WALL_RIGHT_T-1)
+    putCluster(tile, size, x, y)
+end
+
 function putCluster(tile, size, x, y)
     x = x or rnd(WALL_LEFT_T, WALL_RIGHT_T-1)
     y = y or rnd(GROUND_HEIGT_T, MAP_H-1)
+
     for i=1,size do
         if MAP[y] ~= nil and MAP[y][x] ~= nil and not MAP[y][x].dug and MAP[y][x].block ~= BLOCKS[OBSIDIAN] then
             local map_tile=deepcopy(def_tile)
@@ -1091,7 +1112,7 @@ function init()
     generateMap()
     for i,res in ipairs(RESOURCES) do
         for j=1,res.clusters do
-            putCluster(res.parent, res.cluster_len)
+            putClusterGauss(res.parent, res.cluster_len, res.mean, res.var)
         end
     end
 

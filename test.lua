@@ -1,5 +1,5 @@
--- title:  Remap demo
--- author: AnastasiaDunbar, Lua translation by StinkerB06
+-- title:  Drill goes Brrrrr!
+-- author: BOOtak
 
 DEBUG=false
 

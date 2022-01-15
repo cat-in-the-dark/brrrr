@@ -1122,17 +1122,37 @@ function init()
     end
 end
 
+oldTile=nil
+tile_dt = 0
 function TICGame()
     cls(15)
     updateCam(CAM, PLAYER)
     draw(CAM, PLAYER)
-    -- local x,y=mouse()
-    -- local mx,my = (CAM.x + x)//T,(CAM.y + y)//T
-    -- rectb(mx*T,my*T,T,T,1)
-    -- local tile=MAP[my][mx]
-    -- print(sf("%s %s", tile.block.name, tile.dug), mx*T+T, my*T+T, 12)
-    -- if btn(BTN_X) then PLAYER.rot = PLAYER.rot - 0.02 end
-    -- if btn(BTN_Z) then PLAYER.rot = PLAYER.rot + 0.02 end
+    local x,y=mouse()
+    local mx,my = (CAM.x + x)//T,(CAM.y + y)//T
+    if MAP[my] ~= nil then
+        local tile=MAP[my][mx]
+        if tile ~= oldTile then
+            tile_dt = 0
+        end
+        tile_dt = tile_dt + 1
+        if tile ~= nil and not tile.dug and tile.seen then
+            rectb(mx*T-CAM.x+1,my*T-CAM.y,T,T,3)
+            if tile_dt > 10 then
+                printframe(sf("%s", tile.block.name), x+T, y+T, 12, 0, true)
+                if tile.block.resource ~= nil then
+                    printframe(sf("price: %d", tile.block.resource.value), x+T, y+T+8, 12, 0, true)
+                    if DEBUG then
+                        printframe(sf("mass: %d", tile.block.resource.mass), x+T, y+T+24, 12, 0, true)
+                    end
+                end
+                if DEBUG then
+                    printframe(sf("hardness: %d", tile.block.hardness), x+T, y+T+16, 12, 0, true)
+                end
+            end
+        end
+        oldTile = tile
+    end
     if DEBUG then
         if keyp(KEY_S) then
             sell_resources(PLAYER)
